@@ -346,8 +346,8 @@ rm -f ~/.claude/orchestrator.pid
 4. **Reinstall:**
 ```bash
 ~/.claude-orchestrator/uninstall.sh
-curl -fsSL https://raw.githubusercontent.com/[org]/claude-orchestrator/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/reshashi/claude-orchestrator/main/install.sh | bash
 ```
 
 5. **Open an issue:**
-https://github.com/[org]/claude-orchestrator/issues
+https://github.com/reshashi/claude-orchestrator/issues

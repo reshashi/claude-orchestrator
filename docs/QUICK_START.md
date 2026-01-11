@@ -17,7 +17,7 @@ Before you begin, ensure you have:
 ### Step 1: Install the Orchestrator
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/[org]/claude-orchestrator/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/reshashi/claude-orchestrator/main/install.sh | bash
 ```
 
 You should see output like:

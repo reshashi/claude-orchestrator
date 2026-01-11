@@ -15,7 +15,7 @@ set -eo pipefail
 
 # Configuration
 VERSION="${VERSION:-local}"
-REPO="${REPO:-[org]/claude-orchestrator}"
+REPO="${REPO:-reshashi/claude-orchestrator}"
 INSTALL_DIR="$HOME/.claude-orchestrator"
 CLAUDE_DIR="$HOME/.claude"
 SCRIPTS_DIR="$CLAUDE_DIR/scripts"

@@ -4,7 +4,7 @@
 
 [![macOS](https://img.shields.io/badge/platform-macOS-blue.svg)](https://www.apple.com/macos/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.0.0-green.svg)](https://github.com/[org]/claude-orchestrator/releases)
+[![Version](https://img.shields.io/badge/version-1.0.0-green.svg)](https://github.com/reshashi/claude-orchestrator/releases)
 
 Based on [Boris Cherny's patterns](https://x.com/bcherny) (creator of Claude Code).
 
@@ -38,7 +38,7 @@ Claude Code Orchestrator enables **parallel AI development** by:
 
 ```bash
 # 1. Install (one command)
-curl -fsSL https://raw.githubusercontent.com/[org]/claude-orchestrator/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/reshashi/claude-orchestrator/main/install.sh | bash
 
 # 2. Restart your terminal
 source ~/.zshrc
@@ -70,13 +70,13 @@ cd your-project && claude
 ### One-liner (recommended)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/[org]/claude-orchestrator/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/reshashi/claude-orchestrator/main/install.sh | bash
 ```
 
 ### Manual install
 
 ```bash
-git clone https://github.com/[org]/claude-orchestrator ~/.claude-orchestrator
+git clone https://github.com/reshashi/claude-orchestrator ~/.claude-orchestrator
 ~/.claude-orchestrator/install.sh
 ```
 
