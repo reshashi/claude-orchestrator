@@ -1,0 +1,53 @@
+name: Test Install Script
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-install:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install iTerm2 (mock check)
+        run: |
+          # Create mock iTerm2 directory for CI
+          sudo mkdir -p /Applications/iTerm.app
+
+      - name: Test local install
+        run: |
+          ./install.sh -y
+
+          # Verify files exist
+          test -f ~/.claude/scripts/orchestrator.sh
+          test -f ~/.claude/scripts/orchestrator-loop.sh
+          test -f ~/.claude/scripts/wt.sh
+          test -f ~/.claude/commands/spawn.md
+          test -f ~/.claude/agents/qa-guardian.md
+
+          echo "All files installed correctly"
+
+      - name: Test uninstall
+        run: |
+          ./uninstall.sh
+
+          # Verify install directory removed
+          test ! -d ~/.claude-orchestrator
+
+          echo "Uninstall completed correctly"
+
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run ShellCheck
+        uses: ludeeus/action-shellcheck@master
+        with:
+          scandir: './scripts'
+          severity: warning

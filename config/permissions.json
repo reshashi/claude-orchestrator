@@ -1,0 +1,28 @@
+{
+  "_comment": "Add these to your project's .claude/settings.local.json permissions.allow array",
+  "permissions": [
+    "Bash(~/.claude/scripts/orchestrator.sh:*)",
+    "Bash(~/.claude/scripts/start-worker.sh:*)",
+    "Bash(~/.claude/scripts/start-all-workers.sh:*)",
+    "Bash(~/.claude/scripts/worker-read.sh:*)",
+    "Bash(~/.claude/scripts/worker-send.sh:*)",
+    "Bash(~/.claude/scripts/worker-status.sh:*)",
+    "Bash(~/.claude/scripts/worker-init.sh:*)",
+    "Bash(git worktree:*)",
+    "Bash(osascript:*)",
+    "Bash(sleep:*)",
+    "Bash(gh pr list:*)",
+    "Bash(gh pr checks:*)",
+    "Bash(gh pr merge:*)",
+    "Bash(gh pr create:*)",
+    "Skill(review)",
+    "Skill(deploy)",
+    "Skill(code-simplifier)",
+    "SlashCommand(/spawn:*)",
+    "SlashCommand(/workers:*)",
+    "SlashCommand(/merge:*)",
+    "SlashCommand(/status:*)",
+    "SlashCommand(/plan:*)",
+    "SlashCommand(/review:*)"
+  ]
+}
