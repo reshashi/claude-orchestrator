@@ -1,3 +1,18 @@
+## [2.2] - 2026-01-13
+
+### Fixed
+- **Focus-stealing fix**: Orchestrator no longer steals window focus when sending input to workers
+  - Removed `activate` commands from AppleScript
+  - Removed `System Events` keystroke approach that required focus
+  - Now uses iTerm's `write text` directly which works without activating the window
+  - Users can now work in other applications while orchestrator runs in background
+
+- **WORKER.md filename mismatch**: Fixed reference from `WORKER.md` to `WORKER_CLAUDE.md` in worker initialization message (line 232)
+
+### Changed
+- `send_to_worker()` function simplified - no longer needs delay or keystroke simulation
+- `send_enter()` function simplified - uses empty `write text` instead of selecting tab and sending keystroke
+
 # Changelog
 
 All notable changes to this project will be documented in this file.

@@ -181,24 +181,17 @@ detect_worker_state() {
 send_to_worker() {
     local TAB="$1"
     local MSG="$2"
-    # Use keystroke approach for reliability - types text then presses return
+    # Use write text WITHOUT activating window - sends text directly to session
     osascript << APPLESCRIPT 2>/dev/null
 tell application "iTerm"
-    activate
+    -- Do NOT activate - this steals focus
     tell current window
         tell tab $TAB
             tell current session
-                -- First write the text
+                -- write text sends text AND presses return automatically
                 write text "$MSG"
             end tell
         end tell
-    end tell
-end tell
--- Small delay then ensure return is sent
-delay 0.2
-tell application "System Events"
-    tell process "iTerm2"
-        keystroke return
     end tell
 end tell
 APPLESCRIPT
@@ -207,19 +200,17 @@ APPLESCRIPT
 
 send_enter() {
     local TAB="$1"
+    # Send empty write text which just presses return - no focus stealing
     osascript << APPLESCRIPT 2>/dev/null
 tell application "iTerm"
-    activate
+    -- Do NOT activate - this steals focus
     tell current window
         tell tab $TAB
-            select
+            tell current session
+                -- Empty write text just sends return
+                write text ""
+            end tell
         end tell
-    end tell
-end tell
-delay 0.1
-tell application "System Events"
-    tell process "iTerm2"
-        keystroke return
     end tell
 end tell
 APPLESCRIPT
@@ -232,7 +223,7 @@ nudge_worker() {
     case "$STATE" in
         NEEDS_INIT)
             if ! is_initialized "$TAB"; then
-                send_to_worker "$TAB" "Read WORKER.md for your task. Enable auto-accept mode (Shift+Tab) and begin working. BEFORE creating a PR, run: npm run type-check && npm run lint && npm run test. Only create the PR if all checks pass."
+                send_to_worker "$TAB" "Read WORKER_CLAUDE.md for your task. Enable auto-accept mode (Shift+Tab) and begin working. BEFORE creating a PR, run: npm run type-check && npm run lint && npm run test. Only create the PR if all checks pass."
                 set_initialized "$TAB"
             fi
             ;;
