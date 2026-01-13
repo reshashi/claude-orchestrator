@@ -1,3 +1,35 @@
+## [2.4] - 2026-01-14
+
+### Added
+
+- **Memory System**: Persistent memory across Claude sessions
+  - `~/.claude/memory/toolchain.json` - Track tools and CLIs you use
+  - `~/.claude/memory/repos.json` - Track repositories you work with
+  - `~/.claude/memory/facts.json` - Store facts the orchestrator should remember
+  - `~/.claude/memory/projects/` - Per-project persistent context
+  - `~/.claude/memory/sessions/` - Session handoff summaries for continuity
+
+- **`/assistant` Command**: Meta-task delegation for the orchestrator
+  - `/assistant remember "fact"` - Store facts to persistent memory
+  - `/assistant recall "topic"` - Search memory for relevant facts
+  - `/assistant toolchain add/list` - Manage toolchain registry
+  - `/assistant repos add/list` - Manage repository registry
+  - `/assistant session-end` - Generate session handoff summary
+
+- **`orchestrator-assistant` Agent**: Lightweight Haiku-based assistant for memory management
+
+- **Memory Scripts**: Bash utilities for memory operations
+  - `memory-read.sh` - Read from memory files
+  - `memory-write.sh` - Write to memory files
+  - `session-summary.sh` - Generate session summaries
+
+### Changed
+
+- `install.sh` now creates `~/.claude/memory/` directory structure
+- Memory templates are copied on first install
+
+---
+
 ## [2.3] - 2026-01-14
 
 ### Added
