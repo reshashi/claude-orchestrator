@@ -22,12 +22,25 @@ jobs:
         run: |
           ./install.sh -y
 
-          # Verify files exist
+          # Verify core files exist
           test -f ~/.claude/scripts/orchestrator.sh
           test -f ~/.claude/scripts/orchestrator-loop.sh
           test -f ~/.claude/scripts/wt.sh
           test -f ~/.claude/commands/spawn.md
           test -f ~/.claude/agents/qa-guardian.md
+
+          # Verify memory system files (v2.3.0)
+          test -f ~/.claude/scripts/memory-read.sh
+          test -f ~/.claude/scripts/memory-write.sh
+          test -f ~/.claude/scripts/session-summary.sh
+          test -f ~/.claude/commands/assistant.md
+          test -f ~/.claude/agents/orchestrator-assistant.md
+          test -d ~/.claude/memory
+          test -d ~/.claude/memory/projects
+          test -d ~/.claude/memory/sessions
+          test -f ~/.claude/memory/toolchain.json
+          test -f ~/.claude/memory/repos.json
+          test -f ~/.claude/memory/facts.json
 
           echo "All files installed correctly"
 
@@ -39,6 +52,21 @@ jobs:
           test ! -d ~/.claude-orchestrator
 
           echo "Uninstall completed correctly"
+
+  test-memory:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install jq
+        run: brew install jq
+
+      - name: Make scripts executable
+        run: chmod +x scripts/*.sh tests/*.sh
+
+      - name: Run memory system tests
+        run: ./tests/test-memory.sh
 
   shellcheck:
     runs-on: ubuntu-latest
