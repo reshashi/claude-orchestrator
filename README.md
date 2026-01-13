@@ -4,7 +4,7 @@
 
 [![macOS](https://img.shields.io/badge/platform-macOS-blue.svg)](https://www.apple.com/macos/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-2.0.0-green.svg)](https://github.com/reshashi/claude-orchestrator/releases)
+[![Version](https://img.shields.io/badge/version-2.1.0-green.svg)](https://github.com/reshashi/claude-orchestrator/releases)
 
 Based on [Boris Cherny's patterns](https://x.com/bcherny) (creator of Claude Code).
 
@@ -172,8 +172,51 @@ git clone https://github.com/reshashi/claude-orchestrator ~/.claude-orchestrator
 | **Planner** | `/project` | PRD generation, work review, iterative feedback |
 | **QA Guardian** | `/review` | Code quality, test coverage, policy compliance |
 | **DevOps Engineer** | `/deploy` | CI/CD, infrastructure, deployment verification |
-| **Code Simplifier** | Large PRs | Clean up complex code, improve readability |
+| **Code Simplifier** | `/qcode` | Clean up complex code, improve readability |
 | **Verify App** | Manual | End-to-end verification and smoke tests |
+
+### Agent Execution Flow (v2.1.0)
+
+Agents run automatically at multiple checkpoints:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  1. PRE-PR (Worker)                                         │
+│     - npm run type-check                                    │
+│     - npm run lint                                          │
+│     - npm run test                                          │
+│     Workers must pass these BEFORE creating a PR            │
+└─────────────────────────┬───────────────────────────────────┘
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│  2. POST-CI (Orchestrator)                                  │
+│     After CI passes on a PR:                                │
+│     - /review (QA Guardian) - Always                        │
+│     - npm audit (Security) - Always                         │
+│     - /qcode (Simplifier) - If 50+ lines changed            │
+│     - /deploy (DevOps) - If infrastructure files changed    │
+│     All required agents must pass before auto-merge         │
+└─────────────────────────┬───────────────────────────────────┘
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│  3. POST-MERGE (Planner)                                    │
+│     After all workers merge, Planner runs:                  │
+│     - /review - Final quality check on combined changes     │
+│     - /qcode - Clean up any redundancy from parallel work   │
+│     - npm audit - Security scan                             │
+│     - /deploy - Deployment readiness (if applicable)        │
+│     Issues found here trigger a new iteration               │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Agent Thresholds
+
+| Agent | Threshold | Description |
+|-------|-----------|-------------|
+| **QA Guardian** | Always | Runs on every PR |
+| **Security Scan** | Always | `npm audit` on every PR |
+| **Code Simplifier** | 50+ lines | PRs with 50+ lines changed |
+| **DevOps Engineer** | Infra files | `.github/`, `vercel.json`, `supabase/`, `Dockerfile`, etc. |
 
 ## Usage Patterns
 

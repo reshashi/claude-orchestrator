@@ -173,6 +173,51 @@ Create a review report:
 - Which requirements are NOT met?
 - What specific fixes are needed?
 
+### Phase 6.5: Run Quality Agents (QUALITY_GATES)
+
+**IMPORTANT**: Run the quality agents to ensure the combined work meets standards.
+
+1. **Run QA Guardian Review** on the merged changes:
+```bash
+# Review all changes since the project started
+/review
+```
+This will:
+- Check architecture policy compliance (5-layer boundaries)
+- Verify test coverage hasn't decreased
+- Check code quality standards
+- Identify security issues
+
+2. **Run Code Simplifier** to clean up the combined changes:
+```bash
+# Simplify and clean up the merged code
+/qcode
+```
+This will:
+- Remove unnecessary complexity
+- Improve code readability
+- Ensure consistent patterns
+- Clean up any redundant code from parallel workers
+
+3. **Run Security Scan**:
+```bash
+npm audit --audit-level=high
+```
+
+4. **Run DevOps Deployment Check** if infrastructure was changed:
+```bash
+/deploy
+```
+
+**Agent Results Summary**:
+After running the agents, document:
+- QA Review: PASS/FAIL (with issues if any)
+- Code Simplifier: Changes made (or "No changes needed")
+- Security: Vulnerabilities found (or "Clean")
+- DevOps: Deployment ready (if applicable)
+
+If any agent finds critical issues, add them to the requirements check.
+
 ### Phase 7: Decision Point
 
 **If ALL requirements met** → Go to Phase 8 (Deliverables)

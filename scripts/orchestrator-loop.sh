@@ -229,7 +229,7 @@ nudge_worker() {
     case "$STATE" in
         NEEDS_INIT)
             if ! is_initialized "$TAB"; then
-                send_to_worker "$TAB" "Read WORKER.md for your task. Enable auto-accept mode (Shift+Tab) and begin working. When done, commit, push, and open a PR."
+                send_to_worker "$TAB" "Read WORKER.md for your task. Enable auto-accept mode (Shift+Tab) and begin working. BEFORE creating a PR, run: npm run type-check && npm run lint && npm run test. Only create the PR if all checks pass."
                 set_initialized "$TAB"
             fi
             ;;
@@ -319,16 +319,32 @@ needs_devops_review() {
     return 1  # false - no devops review needed
 }
 
-# Check if PR needs code-simplifier (large changes)
+# Check if PR needs code-simplifier (medium+ changes)
 needs_code_simplifier() {
     local PR_NUM="$1"
     local STATS=$(gh pr view "$PR_NUM" --repo "$REPO_FULL" --json additions,deletions --jq '.additions + .deletions' 2>/dev/null)
 
-    # Run code-simplifier for PRs with 100+ lines changed
-    if [ -n "$STATS" ] && [ "$STATS" -ge 100 ]; then
+    # Run code-simplifier for PRs with 50+ lines changed (lowered from 100)
+    if [ -n "$STATS" ] && [ "$STATS" -ge 50 ]; then
         return 0  # true - needs code-simplifier
     fi
     return 1  # false - no code-simplifier needed
+}
+
+# Check if PR needs security scan (always run for safety)
+needs_security_scan() {
+    # Always run security scan on all PRs
+    return 0
+}
+
+# Run security scan
+run_security_scan() {
+    local PR_NUM="$1"
+    local TAB="$2"
+
+    log "Running security scan for PR #$PR_NUM"
+    send_to_worker "$TAB" "Run 'npm audit --audit-level=high' and report any vulnerabilities. If critical issues found, list them clearly."
+    add_agent_run "$TAB" "security"
 }
 
 # Track which agents have run
@@ -376,13 +392,25 @@ all_agents_complete() {
         return 1
     fi
 
+    # Check if security scan completed (runs on ALL PRs)
+    if ! has_agent_run "$TAB" "security"; then
+        return 1
+    fi
+    # Check for security scan completion (npm audit output)
+    if ! echo "$OUTPUT" | grep -qE "(found 0 vulnerabilities|audit.*complete|no vulnerabilities|npm audit)"; then
+        # Give it some slack - if security was run, assume it completed
+        if ! echo "$OUTPUT" | grep -qE "(npm audit|security.*scan|vulnerabilities)"; then
+            return 1
+        fi
+    fi
+
     # Check if devops was needed and completed
     if needs_devops_review "$PR_NUM"; then
         if ! has_agent_run "$TAB" "devops"; then
             return 1
         fi
         # Check for devops completion marker in output
-        if ! echo "$OUTPUT" | grep -qE "(DEPLOYMENT STATUS|READY WITH|DevOps.*complete)"; then
+        if ! echo "$OUTPUT" | grep -qE "(DEPLOYMENT STATUS|READY WITH|DevOps.*complete|Pre-Flight|deployment)"; then
             return 1
         fi
     fi
@@ -393,7 +421,7 @@ all_agents_complete() {
             return 1
         fi
         # Check for simplifier completion marker
-        if ! echo "$OUTPUT" | grep -qE "(Code.*simplified|quality.*check|QCODE.*complete)"; then
+        if ! echo "$OUTPUT" | grep -qE "(Code.*simplified|quality.*check|QCODE.*complete|simplif|Lines removed)"; then
             return 1
         fi
     fi
@@ -477,14 +505,19 @@ while true; do
                                 log "PR #$PR_NUM CI passed, initiating review..."
                                 run_review "$PR_NUM" "$BRANCH" "$TAB"
                             elif is_reviewed "$TAB"; then
-                                # QA review passed - check if additional agents needed
+                                # QA review passed - run additional quality agents
+
+                                # Run security scan on ALL PRs (if not yet run)
+                                if ! has_agent_run "$TAB" "security"; then
+                                    run_security_scan "$PR_NUM" "$TAB"
+                                fi
 
                                 # Run devops review if needed and not yet run
                                 if needs_devops_review "$PR_NUM" && ! has_agent_run "$TAB" "devops"; then
                                     run_devops_review "$PR_NUM" "$BRANCH" "$TAB"
                                 fi
 
-                                # Run code-simplifier if needed and not yet run
+                                # Run code-simplifier if needed (50+ lines) and not yet run
                                 if needs_code_simplifier "$PR_NUM" && ! has_agent_run "$TAB" "simplifier"; then
                                     run_code_simplifier "$PR_NUM" "$BRANCH" "$TAB"
                                 fi

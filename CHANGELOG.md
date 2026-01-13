@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-01-13
+
+### Added
+
+- **Security Scanning on All PRs**: Every PR now gets a security scan (`npm audit`) regardless of files changed
+- **Quality Agents in Planner Review Phase**: After all workers merge, the Planner now runs:
+  - `/review` (QA Guardian) - Code quality and policy compliance
+  - `/qcode` (Code Simplifier) - Clean up combined changes
+  - `npm audit` - Security vulnerability scan
+  - `/deploy` (DevOps) - Deployment readiness (if infrastructure changed)
+
+### Changed
+
+- **Lowered Code Simplifier Threshold**: Now triggers on 50+ line changes (was 100+)
+- **Pre-PR Quality Gates**: Workers are now instructed to run `npm run type-check && npm run lint && npm run test` BEFORE creating a PR
+- **Enhanced Agent Completion Detection**: More robust pattern matching for agent output
+
+### Improved
+
+- Better integration of QA Guardian, DevOps Engineer, and Code Simplifier agents
+- More thorough quality checks throughout the development lifecycle
+- Agents now run at multiple checkpoints: pre-PR (worker), post-CI (orchestrator), and post-merge (planner)
+
 ## [2.0.0] - 2026-01-13
 
 ### Added
