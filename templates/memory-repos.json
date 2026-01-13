@@ -1,0 +1,11 @@
+{
+  "$schema": "memory-repos-schema",
+  "$description": "Repositories you work with. Add entries for repos Claude should know about for context and navigation.",
+  "example-repo": {
+    "url": "https://github.com/user/repo",
+    "default_branch": "main",
+    "description": "Example repository entry - replace with your own repos",
+    "tech_stack": ["typescript", "react"],
+    "notes": "Any special notes about working with this repo"
+  }
+}
