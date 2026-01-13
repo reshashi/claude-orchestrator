@@ -1,0 +1,12 @@
+{
+  "$schema": "memory-facts-schema",
+  "$description": "Facts the orchestrator should remember. Add anything Claude should know across sessions.",
+  "facts": [
+    {
+      "id": "example-1",
+      "category": "preference",
+      "content": "Example fact - replace with your own facts",
+      "added": "2025-01-01"
+    }
+  ]
+}
