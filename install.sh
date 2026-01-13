@@ -21,6 +21,7 @@ CLAUDE_DIR="$HOME/.claude"
 SCRIPTS_DIR="$CLAUDE_DIR/scripts"
 COMMANDS_DIR="$CLAUDE_DIR/commands"
 AGENTS_DIR="$CLAUDE_DIR/agents"
+TEMPLATES_DIR="$INSTALL_DIR/templates"
 WORKTREES_DIR="$HOME/.worktrees"
 
 # Colors (if terminal supports them)
@@ -187,6 +188,14 @@ check_prerequisites() {
         warn "Install with: brew install gh"
     else
         success "GitHub CLI found"
+    fi
+
+    # jq check (required for project mode in v2.0)
+    if ! command -v jq &> /dev/null; then
+        warn "jq not found. Required for /project command (v2.0)."
+        warn "Install with: brew install jq"
+    else
+        success "jq found"
     fi
 
     if [[ "$has_errors" == true ]]; then
@@ -390,11 +399,15 @@ print_success() {
     echo "  2. Start Claude in your project:"
     echo "     cd your-project && claude"
     echo ""
-    echo "  3. Spawn workers:"
+    echo "  3. Run a full project autonomously (NEW in v2.0):"
+    echo "     /project \"Add user authentication with magic links\""
+    echo ""
+    echo "     OR spawn workers manually:"
     echo "     /spawn auth \"implement authentication\""
     echo "     /spawn api \"create API endpoints\""
     echo ""
     echo "Quick commands:"
+    echo "  /project \"desc\"        Full autonomous project (v2.0)"
     echo "  /spawn <name> \"task\"   Create worker in new iTerm tab"
     echo "  /status                Check all worktrees and workers"
     echo "  /workers list          List active worker tabs"

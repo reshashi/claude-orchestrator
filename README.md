@@ -4,7 +4,7 @@
 
 [![macOS](https://img.shields.io/badge/platform-macOS-blue.svg)](https://www.apple.com/macos/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.0.0-green.svg)](https://github.com/reshashi/claude-orchestrator/releases)
+[![Version](https://img.shields.io/badge/version-2.0.0-green.svg)](https://github.com/reshashi/claude-orchestrator/releases)
 
 Based on [Boris Cherny's patterns](https://x.com/bcherny) (creator of Claude Code).
 
@@ -12,26 +12,68 @@ Based on [Boris Cherny's patterns](https://x.com/bcherny) (creator of Claude Cod
 
 Claude Code Orchestrator enables **parallel AI development** by:
 
+- **Taking conceptual project descriptions** and turning them into executed code
+- **Generating comprehensive PRDs** with worker task breakdowns
 - **Spawning multiple Claude sessions** as independent workers
 - **Isolating each worker in git worktrees** (no merge conflicts)
-- **Automating the PR pipeline** (review → verify → merge)
+- **Automating the full pipeline** (PRD → spawn → monitor → review → merge → deliver)
 - **Built-in quality agents** (QA Guardian, DevOps Engineer, Code Simplifier)
 
+## NEW in v2.0: Autonomous Planner Layer
+
+**Give Claude a concept. Walk away. Come back to working code.**
+
 ```
-┌─────────────────────────────────────────────────────────┐
-│   Tab 1: ORCHESTRATOR (You)                             │
-│   /spawn auth "implement authentication"                │
-│   /spawn api "create REST API"                          │
-│   /spawn tests "write test suite"                       │
-└─────────────────────────────────────────────────────────┘
-        │               │               │
-        ▼               ▼               ▼
-┌──────────────┐ ┌──────────────┐ ┌──────────────┐
-│  Tab 2: auth │ │  Tab 3: api  │ │ Tab 4: tests │
-│  (working)   │ │  (working)   │ │  (working)   │
-│      ↓       │ │      ↓       │ │      ↓       │
-│  (PR ready)  │ │  (PR ready)  │ │  (PR ready)  │
-└──────────────┘ └──────────────┘ └──────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│   HUMAN: "/project Add user authentication with OAuth"      │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    PLANNER (New in v2.0)                    │
+│  - Generates comprehensive PRD                              │
+│  - Creates worker task breakdown                            │
+│  - Reviews completed work                                   │
+│  - Iterates with feedback (up to 3x)                        │
+│  - Delivers summary + usage guide                           │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│                 ORCHESTRATOR                                │
+│  - Creates worktrees for each task                          │
+│  - Spawns workers in iTerm tabs                             │
+│  - Monitors every 5 seconds                                 │
+│  - Coordinates work, prevents conflicts                     │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+              ┌────────────┼────────────┐
+              ▼            ▼            ▼
+        ┌──────────┐ ┌──────────┐ ┌──────────┐
+        │ Worker 1 │ │ Worker 2 │ │ Worker 3 │
+        │ auth-db  │ │ auth-api │ │ auth-ui  │
+        └──────────┘ └──────────┘ └──────────┘
+```
+
+### Autonomous Project Execution
+
+```bash
+# Just describe what you want
+/project "Add a dark mode toggle that persists user preference to localStorage"
+
+# Claude will:
+# 1. Generate a PRD with success criteria
+# 2. Break it into worker tasks
+# 3. Spawn workers in parallel
+# 4. Monitor progress
+# 5. Review against requirements
+# 6. Iterate if needed (up to 3x)
+# 7. Notify you when complete
+
+# You come back to:
+# - Working code merged to master
+# - Summary with usage guide
+# - macOS notification when done
 ```
 
 ## Quick Start
@@ -46,10 +88,12 @@ source ~/.zshrc
 # 3. Start Claude in your project
 cd your-project && claude
 
-# 4. Spawn parallel workers
+# 4. Run a full project autonomously
+/project "Add user authentication with magic links"
+
+# OR spawn workers manually
 /spawn auth "implement user authentication"
 /spawn api "create REST API endpoints"
-/spawn tests "write comprehensive test suite"
 
 # 5. Monitor progress
 /status
@@ -64,6 +108,7 @@ cd your-project && claude
 | **Git 2.20+** | Required for worktree support |
 | **[Claude Code CLI](https://claude.ai/code)** | Required |
 | **[GitHub CLI](https://cli.github.com/)** | Optional (for PR automation) |
+| **jq** | Required for project state management |
 
 ## Installation
 
@@ -98,6 +143,7 @@ git clone https://github.com/reshashi/claude-orchestrator ~/.claude-orchestrator
 
 | Command | Description |
 |---------|-------------|
+| `/project "description"` | **NEW** Full autonomous project execution |
 | `/spawn <name> "task"` | Create worktree + start worker in new tab |
 | `/status` | Check all worktrees, workers, and PRs |
 | `/workers list` | List active worker tabs |
@@ -123,12 +169,35 @@ git clone https://github.com/reshashi/claude-orchestrator ~/.claude-orchestrator
 
 | Agent | Trigger | Purpose |
 |-------|---------|---------|
+| **Planner** | `/project` | PRD generation, work review, iterative feedback |
 | **QA Guardian** | `/review` | Code quality, test coverage, policy compliance |
 | **DevOps Engineer** | `/deploy` | CI/CD, infrastructure, deployment verification |
 | **Code Simplifier** | Large PRs | Clean up complex code, improve readability |
 | **Verify App** | Manual | End-to-end verification and smoke tests |
 
 ## Usage Patterns
+
+### Autonomous Project (NEW in v2.0)
+
+Let Claude handle everything from concept to completion:
+
+```bash
+# Single command to execute a full project
+/project "Implement a rate limiter middleware that:
+- Limits to 100 requests per minute per IP
+- Returns 429 Too Many Requests when exceeded
+- Stores counts in Redis"
+
+# Claude will autonomously:
+# 1. Generate PRD with success criteria
+# 2. Create worker tasks (e.g., middleware, redis-client, tests)
+# 3. Spawn workers in parallel
+# 4. Monitor and coordinate
+# 5. Review against PRD requirements
+# 6. Iterate if requirements not met (max 3 times)
+# 7. Generate summary and usage guide
+# 8. Notify you via macOS notification + terminal bell
+```
 
 ### Manual Orchestration
 
@@ -182,6 +251,28 @@ Each worker automatically:
 3. Creates a PR when the task is complete
 4. **Does NOT merge** (orchestrator handles merging)
 
+## Project State (v2.0)
+
+When using `/project`, state is tracked in `~/.claude/project-state.json`:
+
+```json
+{
+  "project_name": "rate-limiter",
+  "prd_path": "/path/to/prds/PRD-2026-01-13-rate-limiter.md",
+  "status": "workers_active",
+  "iteration": 1,
+  "max_iterations": 3,
+  "workers": [
+    {"name": "middleware", "tab": 2, "status": "working"},
+    {"name": "redis-client", "tab": 3, "status": "pr_open"},
+    {"name": "tests", "tab": 4, "status": "merged"}
+  ],
+  "started_at": "2026-01-13T10:00:00Z"
+}
+```
+
+Project states: `conceptualizing` → `spawning_workers` → `workers_active` → `all_merged` → `reviewing` → `complete`
+
 ## Project Configuration
 
 Add permissions to your project's `.claude/settings.local.json`:
@@ -194,13 +285,16 @@ Add permissions to your project's `.claude/settings.local.json`:
       "Bash(git worktree:*)",
       "Bash(osascript:*)",
       "Bash(gh pr:*)",
+      "Bash(jq:*)",
+      "Skill(project)",
       "Skill(review)",
       "Skill(deploy)",
       "Skill(code-simplifier)",
       "SlashCommand(/spawn:*)",
       "SlashCommand(/workers:*)",
       "SlashCommand(/status:*)",
-      "SlashCommand(/merge:*)"
+      "SlashCommand(/merge:*)",
+      "SlashCommand(/project:*)"
     ]
   }
 }
@@ -215,9 +309,13 @@ After installation:
 ├── install.sh
 ├── uninstall.sh
 ├── version
+├── CHANGELOG.md
 ├── scripts/
 ├── commands/
-└── agents/
+├── agents/
+└── templates/                 # NEW in v2.0
+    ├── prd-template.md
+    └── summary-template.md
 
 ~/.claude/                     # Claude Code directory
 ├── scripts/                   # Symlinked scripts
@@ -226,34 +324,44 @@ After installation:
 │   ├── start-worker.sh
 │   └── wt.sh
 ├── commands/                  # Slash commands
+│   ├── project.md             # NEW in v2.0
 │   ├── spawn.md
 │   ├── status.md
 │   └── review.md
-└── agents/                    # Built-in agents
-    ├── qa-guardian.md
-    ├── devops-engineer.md
-    └── code-simplifier.md
+├── agents/                    # Built-in agents
+│   ├── planner.md             # NEW in v2.0
+│   ├── qa-guardian.md
+│   ├── devops-engineer.md
+│   └── code-simplifier.md
+└── project-state.json         # NEW in v2.0
 
 ~/.worktrees/                  # Git worktrees
 └── <repo-name>/
     ├── <worker-1>/           # feature/<worker-1> branch
     ├── <worker-2>/           # feature/<worker-2> branch
     └── ...
+
+<your-project>/prds/           # Generated PRDs (NEW in v2.0)
+└── PRD-YYYY-MM-DD-project-name.md
 ```
 
 ## How It Works
 
-1. **Worktree Isolation**: Each worker operates in its own git worktree with a dedicated feature branch. This prevents merge conflicts between parallel workers.
+1. **Planner Layer (v2.0)**: Takes conceptual descriptions, generates PRDs with worker task breakdowns, reviews completed work, and iterates if requirements aren't met.
 
-2. **iTerm Automation**: Uses AppleScript to open new iTerm tabs, run Claude in each, and communicate between sessions.
+2. **Worktree Isolation**: Each worker operates in its own git worktree with a dedicated feature branch. This prevents merge conflicts between parallel workers.
 
-3. **State Machine**: The orchestrator loop tracks each worker's state (NEEDS_INIT, WORKING, PR_OPEN, MERGED) and takes appropriate actions.
+3. **iTerm Automation**: Uses AppleScript to open new iTerm tabs, run Claude in each, and communicate between sessions.
 
-4. **Review Pipeline**: Before merging, PRs pass through quality gates:
+4. **State Machine**: The orchestrator loop tracks each worker's state (NEEDS_INIT, WORKING, PR_OPEN, MERGED) and takes appropriate actions.
+
+5. **Review Pipeline**: Before merging, PRs pass through quality gates:
    - CI must pass
    - QA Guardian reviews code quality
    - DevOps Engineer reviews infrastructure changes
    - Code Simplifier cleans up large PRs
+
+6. **Completion Notification**: macOS notification + terminal bell when project completes.
 
 ## Troubleshooting
 
@@ -262,6 +370,14 @@ After installation:
 1. Ensure iTerm2 is installed at `/Applications/iTerm.app`
 2. Grant Terminal/iTerm accessibility permissions in System Preferences
 3. Check that the worktree was created: `wt list <repo>`
+
+### Workers stuck waiting for input
+
+This was fixed in v2.0. The orchestrator now properly submits messages with an explicit Return keystroke.
+
+### False error detection interrupting workers
+
+This was fixed in v2.0. The orchestrator now only triggers ERROR state for actual Claude/system errors (API errors, connection failures), not build/test failures that workers handle autonomously.
 
 ### AppleScript errors
 
@@ -282,6 +398,13 @@ If a worktree wasn't cleaned up properly:
 ```bash
 git worktree list
 git worktree remove <path> --force
+```
+
+### jq not found
+
+Install jq for project state management:
+```bash
+brew install jq
 ```
 
 ## Contributing

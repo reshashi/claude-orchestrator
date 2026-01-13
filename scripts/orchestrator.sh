@@ -43,17 +43,33 @@ APPLESCRIPT
 }
 
 # Send a message to a worker tab
+# Uses keystroke approach to ensure the message is properly submitted
 worker_send() {
     local TAB="${1:-2}"
     local MESSAGE="$2"
+
+    # First, type the message character by character using keystroke
+    # Then press Return to submit
     osascript << APPLESCRIPT
 tell application "iTerm"
+    activate
     tell current window
+        -- Select the target tab
+        select tab $TAB
+        delay 0.2
         tell tab $TAB
             tell current session
+                -- Write the text (this puts it in the input)
                 write text "$MESSAGE"
             end tell
         end tell
+    end tell
+end tell
+-- Small delay then press Return to ensure submission
+delay 0.3
+tell application "System Events"
+    tell process "iTerm2"
+        keystroke return
     end tell
 end tell
 APPLESCRIPT

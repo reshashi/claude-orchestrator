@@ -8,9 +8,72 @@ LOG_FILE="${LOG_FILE:-$HOME/.claude/orchestrator.log}"
 PID_FILE="$HOME/.claude/orchestrator.pid"
 SESSIONS_FILE="$HOME/.claude/active-sessions.log"
 STATE_DIR="$HOME/.claude/worker-states"
+PROJECT_STATE_FILE="$HOME/.claude/project-state.json"
 
 mkdir -p "$(dirname "$LOG_FILE")"
 mkdir -p "$STATE_DIR"
+
+# ============================================================
+# PROJECT MODE FUNCTIONS
+# ============================================================
+
+is_project_mode() {
+    [ -f "$PROJECT_STATE_FILE" ]
+}
+
+get_project_status() {
+    jq -r '.status' "$PROJECT_STATE_FILE" 2>/dev/null
+}
+
+get_project_name() {
+    jq -r '.project_name' "$PROJECT_STATE_FILE" 2>/dev/null
+}
+
+update_project_status() {
+    local NEW_STATUS="$1"
+    local TMP_FILE=$(mktemp)
+    jq --arg status "$NEW_STATUS" '.status = $status' "$PROJECT_STATE_FILE" > "$TMP_FILE" && mv "$TMP_FILE" "$PROJECT_STATE_FILE"
+    log "Project status updated: $NEW_STATUS"
+}
+
+update_worker_status_in_project() {
+    local WORKER_NAME="$1"
+    local NEW_STATUS="$2"
+    local TMP_FILE=$(mktemp)
+    jq --arg name "$WORKER_NAME" --arg status "$NEW_STATUS" \
+        '(.workers[] | select(.name == $name)).status = $status' \
+        "$PROJECT_STATE_FILE" > "$TMP_FILE" && mv "$TMP_FILE" "$PROJECT_STATE_FILE"
+    log "Worker $WORKER_NAME status updated: $NEW_STATUS"
+}
+
+check_all_project_workers_complete() {
+    if ! is_project_mode; then return 1; fi
+
+    # Count workers that are not yet merged
+    local ACTIVE=$(jq '[.workers[] | select(.status != "merged")] | length' "$PROJECT_STATE_FILE" 2>/dev/null)
+
+    if [ -z "$ACTIVE" ] || [ "$ACTIVE" -eq 0 ]; then
+        return 0  # All workers complete
+    fi
+    return 1
+}
+
+notify_human() {
+    local TITLE="$1"
+    local MESSAGE="$2"
+
+    # Terminal bell
+    echo -e "\a"
+
+    # macOS notification
+    osascript -e "display notification \"$MESSAGE\" with title \"$TITLE\" sound name \"Glass\"" 2>/dev/null || true
+
+    log "NOTIFICATION: $TITLE - $MESSAGE"
+}
+
+# ============================================================
+# END PROJECT MODE FUNCTIONS
+# ============================================================
 
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$LOG_FILE"
@@ -85,14 +148,18 @@ APPLESCRIPT
 
 detect_worker_state() {
     local OUTPUT="$1"
-    
-    if echo "$OUTPUT" | grep -qiE '(Try "how does|>\s*$|\? for shortcuts)' && ! echo "$OUTPUT" | grep -qiE "(Reading|WORKER\.md|task|error)"; then
+
+    # Check for composing/thinking state first - don't interrupt Claude while thinking
+    if echo "$OUTPUT" | grep -qiE "(Composing|thinking|ctrl\+c to interrupt)"; then
+        echo "WORKING"
+    elif echo "$OUTPUT" | grep -qiE '(Try "how does|>\s*$|\? for shortcuts)' && ! echo "$OUTPUT" | grep -qiE "(Reading|WORKER\.md|task|error)"; then
         echo "NEEDS_INIT"
     elif echo "$OUTPUT" | grep -qiE "(MCP servers found|Space to select.*Enter to confirm)"; then
         echo "MCP_PROMPT"
     elif echo "$OUTPUT" | grep -qiE "(Trust this project|Do you trust)"; then
         echo "TRUST_PROMPT"
-    elif echo "$OUTPUT" | grep -qiE "(PR created|pull request|opened.*PR)"; then
+    # Check for PR URL pattern (github.com/.../pull/NNN) - more reliable than text matching
+    elif echo "$OUTPUT" | grep -qiE "(github\.com/.*/pull/[0-9]+|PR created|pull request|opened.*PR)"; then
         if echo "$OUTPUT" | grep -qiE "(merged|✓.*merged)"; then
             echo "MERGED"
         else
@@ -100,7 +167,8 @@ detect_worker_state() {
         fi
     elif echo "$OUTPUT" | grep -qiE "(Do you want to proceed|waiting for|proceed\?|continue\?|y/n|yes/no|\[Y/n\]|\[y/N\])"; then
         echo "WAITING_INPUT"
-    elif echo "$OUTPUT" | grep -qiE "(error:|failed|exception|traceback|fatal:)"; then
+    # Only trigger ERROR for actual Claude/system errors, not build/test failures which worker handles
+    elif echo "$OUTPUT" | grep -qiE "(Claude.*error|API.*error|connection.*failed|ECONNREFUSED|rate.*limit)"; then
         echo "ERROR"
     else
         echo "WORKING"
@@ -457,6 +525,16 @@ while true; do
             MERGED)
                 if is_merged "$TAB"; then
                     log "Tab $TAB complete, closing..."
+
+                    # Update project state if in project mode
+                    if is_project_mode; then
+                        WORKER_INFO=$(get_worker_info "$TAB")
+                        WORKER_NAME=$(echo "$WORKER_INFO" | cut -d'|' -f1)
+                        if [ -n "$WORKER_NAME" ]; then
+                            update_worker_status_in_project "$WORKER_NAME" "merged"
+                        fi
+                    fi
+
                     sleep 2
                     close_tab "$TAB"
                     clear_tab_state "$TAB"
@@ -464,5 +542,27 @@ while true; do
                 ;;
         esac
     done
+
+    # ============================================================
+    # PROJECT MODE: Check if all workers are complete
+    # ============================================================
+    if is_project_mode; then
+        PROJECT_STATUS=$(get_project_status)
+
+        # Only check for completion if workers are active
+        if [ "$PROJECT_STATUS" = "workers_active" ]; then
+            if check_all_project_workers_complete; then
+                PROJECT_NAME=$(get_project_name)
+                log "PROJECT MODE: All workers have merged for project: $PROJECT_NAME"
+                update_project_status "all_merged"
+
+                # Notify the planner session (Tab 1) that work is complete
+                send_to_worker 1 "PROJECT_COMPLETE: All workers have merged for project '$PROJECT_NAME'. Begin reviewing merged code against PRD requirements."
+
+                log "Notified planner session to begin review"
+            fi
+        fi
+    fi
+
     sleep "$POLL_INTERVAL"
 done
