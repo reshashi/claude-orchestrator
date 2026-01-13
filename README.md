@@ -4,9 +4,12 @@
 
 [![macOS](https://img.shields.io/badge/platform-macOS-blue.svg)](https://www.apple.com/macos/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-2.1.0-green.svg)](https://github.com/reshashi/claude-orchestrator/releases)
+[![Version](https://img.shields.io/badge/version-2.2-green.svg)](https://github.com/reshashi/claude-orchestrator/releases/latest)
+[![Latest Release](https://img.shields.io/github/v/release/reshashi/claude-orchestrator?label=latest)](https://github.com/reshashi/claude-orchestrator/releases/latest)
 
 Based on [Boris Cherny's patterns](https://x.com/bcherny) (creator of Claude Code).
+
+> **📦 Latest: [v2.2](https://github.com/reshashi/claude-orchestrator/releases/tag/v2.2)** — Focus-stealing fix, work in other apps while orchestrator runs!
 
 ## What is this?
 
@@ -19,7 +22,40 @@ Claude Code Orchestrator enables **parallel AI development** by:
 - **Automating the full pipeline** (PRD → spawn → monitor → review → merge → deliver)
 - **Built-in quality agents** (QA Guardian, DevOps Engineer, Code Simplifier)
 
-## NEW in v2.0: Autonomous Planner Layer
+## NEW in v2.2: Work While Orchestrator Runs
+
+**The orchestrator no longer steals window focus!** You can now work in other applications (browser, editor, Slack) while parallel workers run in the background.
+
+### What was fixed:
+- ❌ **Before**: Every 5 seconds, iTerm would steal focus and interrupt your work
+- ✅ **After**: Orchestrator sends commands silently without activating iTerm window
+
+### How it works:
+The fix replaces AppleScript's `activate` + `System Events keystroke` approach with iTerm's native `write text` command, which sends input directly to sessions without requiring window focus.
+
+```applescript
+# Before (v2.1 and earlier) - STEALS FOCUS
+tell application "iTerm"
+    activate  # <-- This brings iTerm to front, interrupting you
+    ...
+end tell
+
+# After (v2.2) - SILENT BACKGROUND OPERATION
+tell application "iTerm"
+    -- No activate command
+    tell current window
+        tell tab N
+            tell current session
+                write text "..."  # Works without focus!
+            end tell
+        end tell
+    end tell
+end tell
+```
+
+---
+
+## Autonomous Planner Layer (v2.0+)
 
 **Give Claude a concept. Walk away. Come back to working code.**
 
@@ -175,7 +211,7 @@ git clone https://github.com/reshashi/claude-orchestrator ~/.claude-orchestrator
 | **Code Simplifier** | `/qcode` | Clean up complex code, improve readability |
 | **Verify App** | Manual | End-to-end verification and smoke tests |
 
-### Agent Execution Flow (v2.1.0)
+### Agent Execution Flow
 
 Agents run automatically at multiple checkpoints:
 
@@ -417,6 +453,14 @@ After installation:
 ### Workers stuck waiting for input
 
 This was fixed in v2.0. The orchestrator now properly submits messages with an explicit Return keystroke.
+
+### iTerm stealing focus / interrupting work
+
+**Fixed in v2.2!** The orchestrator no longer steals window focus when sending input to workers. If you're on an older version, update:
+
+```bash
+~/.claude-orchestrator/install.sh --update
+```
 
 ### False error detection interrupting workers
 
