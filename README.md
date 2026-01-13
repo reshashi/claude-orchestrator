@@ -4,7 +4,7 @@
 
 [![macOS](https://img.shields.io/badge/platform-macOS-blue.svg)](https://www.apple.com/macos/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-2.2-green.svg)](https://github.com/reshashi/claude-orchestrator/releases/latest)
+[![Version](https://img.shields.io/badge/version-2.3-green.svg)](https://github.com/reshashi/claude-orchestrator/releases/latest)
 [![Latest Release](https://img.shields.io/github/v/release/reshashi/claude-orchestrator?label=latest)](https://github.com/reshashi/claude-orchestrator/releases/latest)
 
 Based on [Boris Cherny's patterns](https://x.com/bcherny) (creator of Claude Code).
@@ -139,6 +139,11 @@ orchestrator-stop
 | `/merge <name>` | Merge worker branch + cleanup |
 | `/review` | Run QA Guardian on PRs |
 | `/deploy` | Run DevOps deployment checks |
+| `/assistant remember "fact"` | Store facts to persistent memory |
+| `/assistant recall "topic"` | Search memory for relevant facts |
+| `/assistant session-end` | Generate session handoff summary |
+
+See [docs/MEMORY.md](docs/MEMORY.md) for full memory system documentation.
 
 ### Update / Uninstall
 
@@ -154,7 +159,18 @@ orchestrator-stop
 
 ## Release Notes
 
-### v2.2 (Latest) — 2026-01-13
+### v2.3 (Latest) — 2026-01-13
+
+**🧠 Memory System** — Persistent memory across Claude sessions!
+
+- **Memory System**: Store facts, tools, and context that persist across sessions
+- **`/assistant` Command**: New command for memory management and meta-tasks
+- **Session Summaries**: Generate handoff notes for next session
+- **Toolchain Registry**: Track tools and CLIs you use regularly
+
+---
+
+### v2.2 — 2026-01-13
 
 **🎯 Focus-Stealing Fix** — Work in other apps while orchestrator runs!
 
