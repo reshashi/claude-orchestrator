@@ -159,14 +159,29 @@ See [docs/MEMORY.md](docs/MEMORY.md) for full memory system documentation.
 
 ## Release Notes
 
-### v2.3 (Latest) — 2026-01-13
+### v2.4 (Latest) — 2026-01-14
 
 **🧠 Memory System** — Persistent memory across Claude sessions!
+
+Thanks to [@johnbongaarts](https://github.com/johnbongaarts) for this contribution!
 
 - **Memory System**: Store facts, tools, and context that persist across sessions
 - **`/assistant` Command**: New command for memory management and meta-tasks
 - **Session Summaries**: Generate handoff notes for next session
 - **Toolchain Registry**: Track tools and CLIs you use regularly
+
+---
+
+### v2.3 — 2026-01-14
+
+**📊 Observability & Window Management** — See what's happening!
+
+- **`claude-orchestrator` Command**: Start Claude as orchestrator with window ID capture
+- **Window-Scoped Tabs**: Workers spawn in orchestrator's window only
+- **Structured JSON Logging**: Events logged to `~/.claude/logs/orchestrator.jsonl`
+- **Prometheus Metrics**: `/metrics` endpoint on port 9090
+- **Cost Tracking**: Per-project Claude API cost estimation
+- **Web Dashboard**: Real-time monitoring UI at localhost:8080
 
 ---
 
