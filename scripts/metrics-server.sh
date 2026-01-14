@@ -34,8 +34,8 @@ handle_request() {
     # Parse the request line
     local REQUEST_LINE
     REQUEST_LINE=$(echo "$REQUEST" | head -1)
-    local METHOD
-    METHOD=$(echo "$REQUEST_LINE" | cut -d' ' -f1)
+    local _METHOD
+    _METHOD=$(echo "$REQUEST_LINE" | cut -d' ' -f1)
     local PATH
     PATH=$(echo "$REQUEST_LINE" | cut -d' ' -f2)
 

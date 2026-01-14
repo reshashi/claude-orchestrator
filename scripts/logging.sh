@@ -63,7 +63,8 @@ log_event() {
     echo "$json_event" >> "$JSON_LOG_FILE"
 
     # Also write human-readable text to stderr and text log file (backward compatibility)
-    local text_line="[$(date '+%Y-%m-%d %H:%M:%S')] [$level] $message"
+    local text_line
+    text_line="[$(date '+%Y-%m-%d %H:%M:%S')] [$level] $message"
     echo "$text_line" >> "$TEXT_LOG_FILE"
     echo "$text_line" >&2
 }

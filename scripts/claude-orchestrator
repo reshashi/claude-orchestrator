@@ -10,7 +10,7 @@
 set -e
 
 REPO_NAME="${1:-$(basename "$(pwd)")}"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 STATE_DIR="$HOME/.claude"
 WINDOW_ID_FILE="$STATE_DIR/orchestrator-window-id"
 
