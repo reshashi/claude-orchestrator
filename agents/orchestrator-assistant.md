@@ -73,7 +73,7 @@ Assistant: Stored fact: "The contested app uses Borda count for voting"
 User: What do we know about claude-orchestrator?
 Assistant: From toolchain.json:
 - Repo: https://github.com/reshashi/claude-orchestrator
-- Version: 2.3.0
+- Version: 2.4
 - Install: curl -fsSL ... | bash
 ```
 

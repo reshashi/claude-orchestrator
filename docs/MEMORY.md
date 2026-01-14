@@ -81,7 +81,7 @@ Use this guide to decide where information should be stored:
 {
   "claude-orchestrator": {
     "repo": "https://github.com/reshashi/claude-orchestrator",
-    "version": "2.3.0",
+    "version": "2.4",
     "install": "curl -fsSL ... | bash",
     "update": "curl -fsSL ... | bash -s -- -y",
     "docs": "https://github.com/reshashi/claude-orchestrator#readme"

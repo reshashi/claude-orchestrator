@@ -299,12 +299,12 @@ install() {
     mkdir -p "$AGENTS_DIR"
     mkdir -p "$WORKTREES_DIR"
 
-    # Create memory directories (v2.3.0)
+    # Create memory directories (v2.4)
     MEMORY_DIR="$CLAUDE_DIR/memory"
     mkdir -p "$MEMORY_DIR/projects"
     mkdir -p "$MEMORY_DIR/sessions"
 
-    # Copy memory templates if they don't exist (v2.3.0)
+    # Copy memory templates if they don't exist (v2.4)
     for template in memory-toolchain.json memory-repos.json memory-facts.json; do
         local target_file="$MEMORY_DIR/${template#memory-}"
         if [[ ! -f "$target_file" && -f "$source_dir/templates/$template" ]]; then
