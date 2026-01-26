@@ -4,7 +4,7 @@
 
 [![macOS](https://img.shields.io/badge/platform-macOS-blue.svg)](https://www.apple.com/macos/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-2.3-green.svg)](https://github.com/reshashi/claude-orchestrator/releases/latest)
+[![Version](https://img.shields.io/badge/version-2.5-green.svg)](https://github.com/reshashi/claude-orchestrator/releases/latest)
 [![Latest Release](https://img.shields.io/github/v/release/reshashi/claude-orchestrator?label=latest)](https://github.com/reshashi/claude-orchestrator/releases/latest)
 
 Based on [Boris Cherny's patterns](https://x.com/bcherny) (creator of Claude Code).
@@ -19,6 +19,7 @@ Claude Code Orchestrator enables **parallel AI development** by:
 - **Generating comprehensive PRDs** with worker task breakdowns
 - **Spawning multiple Claude sessions** as independent workers
 - **Isolating each worker in git worktrees** (no merge conflicts)
+- **Auto-injecting memory context** (preferences, project facts, domain patterns)
 - **Automating the full pipeline** (PRD → spawn → monitor → review → merge → deliver)
 - **Built-in quality agents** (QA Guardian, DevOps Engineer, Code Simplifier)
 
@@ -41,6 +42,7 @@ Claude Code Orchestrator enables **parallel AI development** by:
 │                    ORCHESTRATOR                             │
 │  - Creates worktrees for each task                          │
 │  - Spawns workers in iTerm tabs                             │
+│  - Injects memory context (preferences + domain patterns)   │
 │  - Monitors every 5 seconds (silently in background)        │
 │  - Coordinates work, prevents conflicts                     │
 └──────────────────────────┬──────────────────────────────────┘
@@ -77,6 +79,14 @@ curl -fsSL https://raw.githubusercontent.com/reshashi/claude-orchestrator/main/i
 # Restart your terminal
 source ~/.zshrc
 ```
+
+**What Gets Installed:**
+- Commands in `~/.claude/scripts/` (added to PATH)
+- Three-tier memory structure in `~/.claude/orchestrator/`:
+  - `seed/` - Orchestrator DNA and worker training templates
+  - `user/` - Your cross-project coding preferences
+  - `global/` - Cross-project memory (toolchain, repos, facts)
+- Per-project memory at `{project}/.claude/memory/` (created on first use)
 
 ### Basic Usage
 
@@ -139,9 +149,16 @@ orchestrator-stop
 | `/merge <name>` | Merge worker branch + cleanup |
 | `/review` | Run QA Guardian on PRs |
 | `/deploy` | Run DevOps deployment checks |
-| `/assistant remember "fact"` | Store facts to persistent memory |
-| `/assistant recall "topic"` | Search memory for relevant facts |
+| `/assistant remember "fact"` | Store facts to persistent memory (v2.4 legacy) |
+| `/assistant recall "topic"` | Search memory for relevant facts (v2.4 legacy) |
 | `/assistant session-end` | Generate session handoff summary |
+
+**Memory System (v2.5+):**
+Workers automatically receive memory at spawn - no manual commands needed! The orchestrator loads:
+- Your coding preferences (user tier)
+- Project facts and tech stack (project tier)
+- Domain-specific patterns learned by previous workers (project tier)
+- Worker training templates (seed tier)
 
 See [docs/MEMORY.md](docs/MEMORY.md) for full memory system documentation.
 
@@ -155,11 +172,63 @@ See [docs/MEMORY.md](docs/MEMORY.md) for full memory system documentation.
 ~/.claude-orchestrator/uninstall.sh
 ```
 
+**Migrating from v2.4 to v2.5:**
+
+If you're upgrading from v2.4, your old memory files at `~/.claude/memory/` will need to be manually moved:
+
+```bash
+# Backup old memory (optional)
+cp -r ~/.claude/memory ~/.claude/memory.v2.4.backup
+
+# Move to new global location
+mv ~/.claude/memory/toolchain.json ~/.claude/orchestrator/global/
+mv ~/.claude/memory/repos.json ~/.claude/orchestrator/global/
+mv ~/.claude/memory/facts.json ~/.claude/orchestrator/global/
+
+# Clean up old location
+rm -rf ~/.claude/memory
+```
+
+The new v2.5 memory system auto-injects context into workers, so you no longer need to use `/assistant recall` manually.
+
 ---
 
 ## Release Notes
 
-### v2.4 (Latest) — 2026-01-14
+### v2.5 (Latest) — 2026-01-26
+
+**🧠 Three-Tier Memory Architecture** — Autonomous worker memory injection!
+
+Major redesign of the memory system to fix v2.4 limitations:
+
+**What Changed:**
+- **Seed Tier** (`~/.claude/orchestrator/seed/`) - Orchestrator DNA, worker training templates, read-only
+- **User Tier** (`~/.claude/orchestrator/user/`) - Cross-project coding preferences and standards
+- **Global Tier** (`~/.claude/orchestrator/global/`) - Cross-project memory (toolchain, repos, facts)
+- **Project Tier** (`{project}/.claude/memory/`) - Project-specific learnings per domain
+
+**Key Features:**
+- **Automatic Memory Injection**: Workers receive all relevant memory at spawn (no manual `/assistant recall` needed)
+- **Domain Classification**: Tasks auto-classified as frontend, backend, testing, auth, database, devops, or docs
+- **Domain Isolation**: Frontend patterns don't pollute backend workers
+- **Memory Precedence**: Seed → User → Project (each tier can override previous)
+- **Worker Learning**: Workers automatically capture domain-specific patterns for future workers
+
+**Breaking Change from v2.4:**
+- All orchestrator memory moved to `~/.claude/orchestrator/`
+- Previous `~/.claude/memory/` files will need manual migration
+
+**Why This Change:**
+- v2.4 required manual human intervention to remember things (defeats autonomous AI)
+- Search-based recall useless (if you know what to search for, you don't need memory)
+- Monolithic memory didn't match domain-specialized workers
+- Workers had no memory context at startup
+
+Thanks to [@johnbongaarts](https://github.com/johnbongaarts) for designing and implementing this architecture!
+
+---
+
+### v2.4 — 2026-01-14
 
 **🧠 Memory System** — Persistent memory across Claude sessions!
 
