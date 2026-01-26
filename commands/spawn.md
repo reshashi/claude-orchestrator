@@ -30,11 +30,31 @@ mkdir -p "$HOME/.worktrees/$REPO_NAME"
 git worktree add -b "$BRANCH_NAME" "$WORKTREE_PATH" HEAD
 ```
 
-4. Create a session-specific CLAUDE.md in the worktree that:
-   - States this worker's specific task
-   - Lists which files/directories this worker OWNS (can modify)
-   - Lists which files/directories are OFF-LIMITS
-   - References the main CLAUDE.md for coding standards
+4. Create a session-specific WORKER_CLAUDE.md in the worktree with memory context:
+```bash
+# Classify worker domain and build three-tier memory context
+WORKER_DOMAIN=$(~/.claude/scripts/classify-domain.sh "$2")
+PROJECT_ROOT=$(git rev-parse --show-toplevel)
+
+# Build comprehensive memory context from seed/user/project tiers
+WORKER_CONTEXT=$(~/.claude/scripts/build-worker-context.sh "$1" "$WORKER_DOMAIN" "$2" "$PROJECT_ROOT")
+
+# Create worker instructions file with memory context
+cat > "$WORKTREE_PATH/WORKER_CLAUDE.md" <<EOF
+$WORKER_CONTEXT
+
+---
+
+## Files You Own
+[List which files/directories this worker can modify]
+
+## Off-Limits Files
+[List which files/directories are forbidden]
+
+## Project Standards
+See main CLAUDE.md in project root for architecture and quality standards.
+EOF
+```
 
 5. Update the orchestrator's tracking file:
 ```bash

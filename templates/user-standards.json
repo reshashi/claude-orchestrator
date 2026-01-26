@@ -1,0 +1,20 @@
+{
+  "$schema": "user-standards-schema",
+  "$description": "Your cross-project development standards",
+  "git": {
+    "commit_style": "conventional",
+    "branch_naming": "feature/task-description",
+    "require_pr_review": true
+  },
+  "testing": {
+    "min_coverage": 90,
+    "prefer": "vitest",
+    "require_e2e": false
+  },
+  "documentation": {
+    "require_readme": true,
+    "require_api_docs": true,
+    "prefer_format": "markdown"
+  },
+  "notes": "Customize these standards to match your workflow"
+}

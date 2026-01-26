@@ -299,19 +299,61 @@ install() {
     mkdir -p "$AGENTS_DIR"
     mkdir -p "$WORKTREES_DIR"
 
-    # Create memory directories (v2.4)
-    MEMORY_DIR="$CLAUDE_DIR/memory"
-    mkdir -p "$MEMORY_DIR/projects"
-    mkdir -p "$MEMORY_DIR/sessions"
+    # Three-tier memory architecture setup (v2.5+)
+    # All orchestrator memory now lives under ~/.claude/orchestrator/
+    info "Setting up three-tier memory architecture..."
 
-    # Copy memory templates if they don't exist (v2.4)
+    ORCHESTRATOR_DIR="$HOME/.claude/orchestrator"
+
+    # Seed tier (orchestrator DNA) - read-only, ships with installation
+    SEED_DIR="$ORCHESTRATOR_DIR/seed"
+    mkdir -p "$SEED_DIR"
+    if [[ -f "$source_dir/seed/orchestrator-onboarding.md" ]]; then
+        cp "$source_dir/seed/orchestrator-onboarding.md" "$SEED_DIR/"
+        cp "$source_dir/seed/worker-training-template.md" "$SEED_DIR/"
+        cp "$source_dir/seed/memory-system-guide.md" "$SEED_DIR/"
+        cp "$source_dir/seed/domain-classifications.json" "$SEED_DIR/"
+        success "Seed memory initialized"
+    else
+        warn "Seed files not found in $source_dir/seed/"
+    fi
+
+    # User tier (cross-project preferences)
+    USER_DIR="$ORCHESTRATOR_DIR/user"
+    mkdir -p "$USER_DIR"
+    if [[ ! -f "$USER_DIR/preferences.json" ]]; then
+        if [[ -f "$source_dir/templates/user-preferences.json" ]]; then
+            cp "$source_dir/templates/user-preferences.json" "$USER_DIR/preferences.json"
+            success "User preferences initialized"
+        fi
+    fi
+    if [[ ! -f "$USER_DIR/standards.json" ]]; then
+        if [[ -f "$source_dir/templates/user-standards.json" ]]; then
+            cp "$source_dir/templates/user-standards.json" "$USER_DIR/standards.json"
+            success "User standards initialized"
+        fi
+    fi
+
+    # Global tier (cross-project memory)
+    GLOBAL_DIR="$ORCHESTRATOR_DIR/global"
+    mkdir -p "$GLOBAL_DIR/projects"
+    mkdir -p "$GLOBAL_DIR/sessions"
+
+    # Copy global memory templates if they don't exist
     for template in memory-toolchain.json memory-repos.json memory-facts.json; do
-        local target_file="$MEMORY_DIR/${template#memory-}"
+        local target_file="$GLOBAL_DIR/${template#memory-}"
         if [[ ! -f "$target_file" && -f "$source_dir/templates/$template" ]]; then
             cp "$source_dir/templates/$template" "$target_file"
             info "  Created $target_file from template"
         fi
     done
+
+    # Note: Project tier created per-project by init-project-memory.sh
+    info "Three-tier memory architecture ready"
+    info "  Seed: $SEED_DIR"
+    info "  User: $USER_DIR"
+    info "  Global: $GLOBAL_DIR"
+    info "  Project: {project}/.claude/memory/ (created on first use)"
 
     # Copy source to install directory (for reference/updates)
     if [[ "$source_dir" != "$INSTALL_DIR" ]]; then

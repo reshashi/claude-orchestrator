@@ -1,0 +1,30 @@
+{
+  "frontend": {
+    "keywords": ["ui", "component", "styling", "react", "vue", "css", "tailwind", "form"],
+    "file_patterns": ["*.tsx", "*.jsx", "*.css", "components/*", "pages/*"]
+  },
+  "backend": {
+    "keywords": ["api", "endpoint", "server", "database", "query", "route", "controller"],
+    "file_patterns": ["*/api/*", "*/routes/*", "*/controllers/*", "*.sql"]
+  },
+  "testing": {
+    "keywords": ["test", "spec", "coverage", "e2e", "integration", "unit"],
+    "file_patterns": ["*.test.*", "*.spec.*", "tests/*", "__tests__/*"]
+  },
+  "auth": {
+    "keywords": ["auth", "login", "authentication", "authorization", "session", "jwt", "oauth"],
+    "file_patterns": ["*/auth/*", "middleware/auth.*"]
+  },
+  "database": {
+    "keywords": ["schema", "migration", "database", "sql", "postgres", "prisma"],
+    "file_patterns": ["*/migrations/*", "schema.*", "*.sql", "prisma/*"]
+  },
+  "devops": {
+    "keywords": ["deploy", "ci", "cd", "docker", "kubernetes", "infrastructure"],
+    "file_patterns": [".github/workflows/*", "Dockerfile", "*.yml", "vercel.json"]
+  },
+  "docs": {
+    "keywords": ["documentation", "readme", "guide", "tutorial", "example"],
+    "file_patterns": ["*.md", "docs/*", "README*"]
+  }
+}
