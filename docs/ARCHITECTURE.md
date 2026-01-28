@@ -7,16 +7,18 @@ This document explains how Claude Code Orchestrator works under the hood.
 The orchestrator system enables parallel AI development through:
 
 1. **Git Worktrees** - Isolated working directories for each worker
-2. **iTerm Automation** - AppleScript-based tab management
-3. **State Machine** - Tracking worker progress through defined states
-4. **Quality Gates** - Automated review before merging
+2. **Node.js Process Management** - Cross-platform background process spawning
+3. **JSONL Streaming** - Real-time output parsing from Claude CLI
+4. **State Machine** - Tracking worker progress through defined states
+5. **Quality Gates** - Automated review before merging
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│                        ORCHESTRATOR (Tab 1)                       │
+│                        ORCHESTRATOR                               │
+│                   (Node.js Background Process)                    │
 │                                                                  │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐  │
-│  │   /spawn    │  │   /status   │  │  orchestrator-loop.sh   │  │
+│  │   /spawn    │  │   /status   │  │   orchestrator loop     │  │
 │  │  command    │  │   command   │  │   (automated mode)      │  │
 │  └──────┬──────┘  └──────┬──────┘  └───────────┬─────────────┘  │
 │         │                │                     │                 │
@@ -24,11 +26,13 @@ The orchestrator system enables parallel AI development through:
           │                │                     │
           ▼                ▼                     ▼
     ┌─────────────────────────────────────────────────────────────┐
-    │                     WORKER TABS (2, 3, 4...)                │
+    │                  WORKER PROCESSES                            │
+    │             (Claude CLI with --print mode)                   │
     │                                                             │
     │  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐       │
     │  │ Worker 1 │  │ Worker 2 │  │ Worker 3 │  │ Worker N │       │
     │  │ worktree │  │ worktree │  │ worktree │  │ worktree │       │
+    │  │ stdout→  │  │ stdout→  │  │ stdout→  │  │ stdout→  │       │
     │  └────┬────┘  └────┬────┘  └────┬────┘  └────┬────┘       │
     │       │            │            │            │             │
     └───────┼────────────┼────────────┼────────────┼─────────────┘
@@ -45,6 +49,42 @@ The orchestrator system enables parallel AI development through:
     │                                                             │
     └─────────────────────────────────────────────────────────────┘
 ```
+
+## Process Model
+
+### Previous (macOS-only)
+- Workers ran in iTerm tabs
+- AppleScript used for terminal automation
+- State detected via regex on terminal output
+- macOS-specific, no Linux/Windows support
+
+### Current (Cross-platform)
+- Workers spawn via `child_process.spawn()`
+- Claude CLI runs with `--print --output-format stream-json`
+- State detected via JSONL message parsing
+- Works on macOS, Linux, and Windows
+
+### Spawning a Worker
+
+```typescript
+const proc = spawn('claude', [
+  '--print',
+  '--output-format', 'stream-json',
+  '--dangerously-skip-permissions',
+  task,
+], {
+  cwd: worktreePath,
+  stdio: ['pipe', 'pipe', 'pipe'],
+});
+```
+
+### Communication Channels
+
+| Direction | Channel | Format |
+|-----------|---------|--------|
+| Claude → Orchestrator | stdout | JSONL stream |
+| Orchestrator → Claude | stdin | Plain text |
+| Errors | stderr | Plain text |
 
 ## Git Worktrees
 
@@ -64,69 +104,20 @@ This allows multiple Claude sessions to work on different branches simultaneousl
 └── my-project/
     ├── auth-db/              # Worktree 1
     │   ├── .git              # Link to main repo
+    │   ├── WORKER_CLAUDE.md  # Worker-specific instructions
     │   ├── src/
     │   └── ...
     ├── auth-api/             # Worktree 2
     │   ├── .git
+    │   ├── WORKER_CLAUDE.md
     │   ├── src/
     │   └── ...
     └── auth-ui/              # Worktree 3
         ├── .git
+        ├── WORKER_CLAUDE.md
         ├── src/
         └── ...
 ```
-
-### Worktree Management
-
-The `wt.sh` script handles worktree operations:
-
-```bash
-# Create a worktree
-wt create my-project auth-feature main
-# Creates ~/.worktrees/my-project/auth-feature on feature/auth-feature branch
-
-# List worktrees
-wt list my-project
-
-# Remove a worktree
-wt remove my-project auth-feature
-```
-
-## iTerm Automation
-
-### AppleScript Integration
-
-The orchestrator uses AppleScript to control iTerm2:
-
-```applescript
--- Open new tab
-tell application "iTerm"
-    tell current window
-        create tab with default profile
-    end tell
-end tell
-
--- Run command in tab
-tell application "iTerm"
-    tell session N of current tab of current window
-        write text "cd ~/.worktrees/project/worker && claude"
-    end tell
-end tell
-
--- Read tab output
-tell application "iTerm"
-    tell session N of current tab of current window
-        get contents
-    end tell
-end tell
-```
-
-### Tab Numbering
-
-- Tab 1: Orchestrator (main session)
-- Tab 2: Worker 1
-- Tab 3: Worker 2
-- Tab N+1: Worker N
 
 ## State Machine
 
@@ -135,111 +126,91 @@ end tell
 Each worker progresses through defined states:
 
 ```
-UNKNOWN → NEEDS_INIT → WORKING → PR_OPEN → MERGED → (closed)
-              ↑                      ↓
-              └──────── ERROR ←──────┘
+SPAWNING → INITIALIZING → WORKING → PR_OPEN → REVIEWING → MERGING → MERGED
+              ↑              ↓          ↓          ↓
+              └──────────── ERROR ←─────┴──────────┘
 ```
 
 | State | Description | Next Actions |
 |-------|-------------|--------------|
-| `UNKNOWN` | Tab just opened | Detect Claude prompt |
-| `NEEDS_INIT` | Claude ready, awaiting task | Send initialization prompt |
+| `SPAWNING` | Process starting | Wait for Claude to load |
+| `INITIALIZING` | Claude loading, reading instructions | Detect first tool use |
 | `WORKING` | Claude actively working | Monitor for PR creation |
-| `PR_OPEN` | PR created, awaiting review | Monitor CI, run /review |
-| `MERGED` | PR merged | Close tab, cleanup |
-| `ERROR` | Something went wrong | Log error, notify |
+| `PR_OPEN` | PR created, awaiting CI/review | Check CI, run /review |
+| `REVIEWING` | QA review in progress | Wait for review result |
+| `MERGING` | PR being merged | Execute merge |
+| `MERGED` | PR merged, complete | Cleanup |
+| `ERROR` | Something went wrong | Intervention required |
+| `STOPPED` | Process terminated | Restart or cleanup |
 
-### State Detection
+### State Detection (JSONL)
 
-The orchestrator loop reads tab output and uses regex patterns to detect states:
+The orchestrator parses Claude's JSON output to detect state transitions:
 
-```bash
-# Claude prompt detection
-if [[ "$output" =~ "You:" || "$output" =~ ">" ]]; then
-    state="NEEDS_INIT"
-fi
+```typescript
+// Tool use indicates active work
+if (message.type === 'assistant' && hasToolUse(message)) {
+  transitionState(workerId, 'WORKING');
+}
 
-# PR creation detection
-if [[ "$output" =~ "PR created" || "$output" =~ "pull request" ]]; then
-    state="PR_OPEN"
-fi
+// PR URL detection
+const prUrl = extractPrUrl(message);
+if (prUrl) {
+  transitionState(workerId, 'PR_OPEN');
+}
 
-# MCP prompt detection
-if [[ "$output" =~ "Do you trust" || "$output" =~ "MCP" ]]; then
-    # Send Enter to accept
-fi
+// Review completion
+const reviewResult = isReviewComplete(message);
+if (reviewResult === 'passed') {
+  transitionState(workerId, 'MERGING');
+}
 ```
 
 ### State Persistence
 
-State is persisted in files to survive script restarts:
+State is persisted to disk for recovery:
 
 ```
-~/.claude/worker-states/
-├── tab2_state           # Current state: WORKING, PR_OPEN, etc.
-├── tab2_initialized     # Boolean: has worker been initialized?
-├── tab2_pr              # PR number if open
-├── tab2_reviewed        # Boolean: has /review passed?
-└── tab2_merged          # Boolean: has PR been merged?
+~/.claude/workers/
+├── registry.json             # All workers index
+└── <worker-id>/
+    ├── state.json            # Current state + metadata
+    ├── output.jsonl          # Captured stdout
+    └── errors.log            # Captured stderr
 ```
 
 ## Orchestrator Loop
 
-### Manual Mode
+The main loop monitors all workers and manages their lifecycle:
 
-In manual mode, you control each step:
+```typescript
+while (running) {
+  for (const worker of workers) {
+    // Skip terminal states
+    if (isTerminalState(worker.state)) continue;
 
-```
-/spawn → (worker works) → /status → /review → gh pr merge → /merge
-```
+    // Check for intervention needs
+    if (needsIntervention(worker)) {
+      await handleIntervention(worker);
+      continue;
+    }
 
-### Automated Mode
+    // State-specific handling
+    switch (worker.state) {
+      case 'PR_OPEN':
+        await handlePrOpen(worker);  // Check CI, run review
+        break;
+      case 'REVIEWING':
+        await handleReviewing(worker);  // Wait for review
+        break;
+      case 'MERGING':
+        await handleMerging(worker);  // Execute merge
+        break;
+    }
+  }
 
-The orchestrator loop (`orchestrator-loop.sh`) automates the entire pipeline:
-
-```bash
-while true; do
-    for tab in $(get_worker_tabs); do
-        output=$(read_tab $tab)
-        state=$(detect_state $output)
-
-        case $state in
-            NEEDS_INIT)
-                send_init_prompt $tab
-                ;;
-            MCP_PROMPT)
-                send_enter $tab
-                ;;
-            PR_OPEN)
-                if ci_passed $tab; then
-                    run_review $tab
-                fi
-                if review_passed $tab; then
-                    merge_pr $tab
-                fi
-                ;;
-            MERGED)
-                close_tab $tab
-                cleanup_worktree $tab
-                ;;
-        esac
-    done
-
-    sleep 5
-done
-```
-
-### Loop Control
-
-```bash
-# Start the loop
-orchestrator-start  # alias for: orchestrator-loop.sh &
-
-# Check status
-orchestrator-status  # Checks PID file
-
-# Stop the loop
-orchestrator-stop    # Sends SIGTERM to loop process
+  await sleep(pollInterval);
+}
 ```
 
 ## Quality Gates
@@ -251,14 +222,14 @@ Before a PR can be merged, it must pass quality gates:
 ```
 CI Passes → QA Guardian → (DevOps Engineer)* → (Code Simplifier)* → Merge
                                 ↑                      ↑
-                         If infra files         If 100+ lines
+                         If infra files         If 50+ lines
 ```
 
 ### QA Guardian
 
 Reviews code against project policies:
-- Architecture compliance (5-layer boundaries)
-- Test coverage (90%+ on new code)
+- Architecture compliance (layer boundaries)
+- Test coverage
 - Code quality (TypeScript, error handling)
 - Security (RLS, input validation)
 - Git workflow (conventional commits)
@@ -274,44 +245,36 @@ Triggered for infrastructure changes:
 
 ### Code Simplifier
 
-Triggered for large PRs (100+ lines):
+Triggered for large PRs (50+ lines):
 - Removes dead code
 - Simplifies logic
 - Improves naming
 - Extracts duplicates
 - NO behavior changes
 
-## Communication
-
-### Orchestrator → Worker
-
-```bash
-# Send text to worker tab
-osascript <<EOF
-tell application "iTerm"
-    tell session 2 of current tab of current window
-        write text "Your task: implement login API"
-    end tell
-end tell
-EOF
-```
-
-### Worker → Orchestrator
-
-Workers communicate via:
-1. **Console output** - Orchestrator reads tab contents
-2. **Git commits** - Orchestrator monitors branch activity
-3. **PRs** - Orchestrator monitors via GitHub API
-
-### Session Log
-
-All worker activity is logged:
+## File Structure (Node.js Implementation)
 
 ```
-~/.claude/active-sessions.log
-├── auth-db|feature/auth-db|~/.worktrees/project/auth-db|task description
-├── auth-api|feature/auth-api|~/.worktrees/project/auth-api|task description
-└── auth-ui|feature/auth-ui|~/.worktrees/project/auth-ui|task description
+~/.claude-orchestrator/
+├── package.json              # Node.js project
+├── tsconfig.json             # TypeScript config
+├── src/
+│   ├── index.ts              # Entry point & exports
+│   ├── types.ts              # Type definitions
+│   ├── orchestrator.ts       # Main orchestration loop
+│   ├── worker-manager.ts     # Process spawning & lifecycle
+│   ├── state-manager.ts      # Persistence & recovery
+│   ├── state-machine.ts      # State transitions
+│   ├── jsonl-parser.ts       # Claude output parsing
+│   ├── github.ts             # GitHub PR operations
+│   ├── logger.ts             # Structured logging
+│   └── cli.ts                # CLI commands
+├── dist/                     # Compiled JavaScript
+├── bin/
+│   └── claude-orchestrator   # CLI executable
+├── commands/                 # Skill definitions
+├── agents/                   # Agent definitions
+└── docs/                     # Documentation
 ```
 
 ## Security Considerations
@@ -320,13 +283,47 @@ All worker activity is logged:
 
 Each worker only has access to its worktree. The main repository and other worktrees are not accessible from a worker session.
 
-### Prompt Injection
+### Dangerous Permissions
 
-Workers receive their task via the spawn command. The task description is sanitized before being sent to prevent prompt injection.
+The `--dangerously-skip-permissions` flag is used for background workers. For security:
+- Workers only operate in isolated worktrees
+- PR review gates catch issues before merge
+- Worktrees can be deleted without affecting main repo
 
 ### Review Enforcement
 
-All PRs must pass `/review` before merge. This prevents workers from merging code that violates project policies.
+All PRs must pass QA review before merge. This prevents workers from merging code that violates project policies.
+
+## CLI Commands
+
+```bash
+# Spawn a new worker
+claude-orchestrator spawn <name> <task> [--repo <name>] [--no-start]
+
+# List workers
+claude-orchestrator list [--all]
+
+# Check status
+claude-orchestrator status [worker-id]
+
+# Read output
+claude-orchestrator read <worker-id> [--lines N]
+
+# Send message
+claude-orchestrator send <worker-id> <message>
+
+# Stop worker
+claude-orchestrator stop <worker-id>
+
+# Merge PR
+claude-orchestrator merge <worker-id>
+
+# Cleanup
+claude-orchestrator cleanup [worker-id]
+
+# Run monitoring loop
+claude-orchestrator loop [--poll <ms>]
+```
 
 ## Performance
 
@@ -338,12 +335,29 @@ All PRs must pass `/review` before merge. This prevents workers from merging cod
 
 ### Resource Usage
 
-- Each Claude session: ~100MB memory
+- Each Claude process: ~100MB memory
 - Each worktree: ~50MB disk (shared .git)
-- Orchestrator loop: ~10MB memory
+- Orchestrator: ~20MB memory
 
 ### Limits
 
 - Recommended max workers: 5-10 concurrent
 - Limited by: Claude API rate limits, CI runner availability
 - Worktrees: Essentially unlimited (disk space)
+
+## Migration from v1 (Bash/AppleScript)
+
+The v2 Node.js implementation replaces the bash scripts:
+
+| v1 (Bash) | v2 (Node.js) |
+|-----------|--------------|
+| `start-worker.sh` | `WorkerManager.spawn()` |
+| `orchestrator-loop.sh` | `Orchestrator.start()` |
+| `worker-status.sh` | `orchestrator status` |
+| `worker-read.sh` | `orchestrator read` |
+| `worker-send.sh` | `orchestrator send` |
+| iTerm tabs | Background processes |
+| AppleScript | child_process.spawn |
+| Regex parsing | JSONL parsing |
+
+The bash scripts in `scripts/` are kept for backwards compatibility but are no longer required.

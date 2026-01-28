@@ -2,10 +2,10 @@
 
 > Parallel development superpowers for Claude Code. One orchestrator, many workers.
 
-[![macOS](https://img.shields.io/badge/platform-macOS-blue.svg)](https://www.apple.com/macos/)
+[![Cross-Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-blue.svg)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-2.3-green.svg)](https://github.com/reshashi/claude-orchestrator/releases/latest)
-[![Latest Release](https://img.shields.io/github/v/release/reshashi/claude-orchestrator?label=latest)](https://github.com/reshashi/claude-orchestrator/releases/latest)
+[![Version](https://img.shields.io/badge/version-3.0-green.svg)](https://github.com/reshashi/claude-orchestrator/releases/latest)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org/)
 
 Based on [Boris Cherny's patterns](https://x.com/bcherny) (creator of Claude Code).
 
@@ -17,10 +17,12 @@ Claude Code Orchestrator enables **parallel AI development** by:
 
 - **Taking conceptual project descriptions** and turning them into executed code
 - **Generating comprehensive PRDs** with worker task breakdowns
-- **Spawning multiple Claude sessions** as independent workers
+- **Spawning multiple Claude sessions** as independent background processes
 - **Isolating each worker in git worktrees** (no merge conflicts)
 - **Automating the full pipeline** (PRD → spawn → monitor → review → merge → deliver)
 - **Built-in quality agents** (QA Guardian, DevOps Engineer, Code Simplifier)
+
+**v3.0**: Now cross-platform! Works on macOS, Linux, and Windows.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -40,8 +42,8 @@ Claude Code Orchestrator enables **parallel AI development** by:
 ┌─────────────────────────────────────────────────────────────┐
 │                    ORCHESTRATOR                             │
 │  - Creates worktrees for each task                          │
-│  - Spawns workers in iTerm tabs                             │
-│  - Monitors every 5 seconds (silently in background)        │
+│  - Spawns workers as background processes                   │
+│  - Monitors via JSONL stream parsing                        │
 │  - Coordinates work, prevents conflicts                     │
 └──────────────────────────┬──────────────────────────────────┘
                            │
@@ -61,21 +63,24 @@ Claude Code Orchestrator enables **parallel AI development** by:
 
 | Requirement | Details |
 |-------------|---------|
-| **macOS** | Required (uses iTerm2 + AppleScript) |
-| **[iTerm2](https://iterm2.com/)** | Required for multi-tab automation |
+| **Node.js 18+** | Required for orchestrator |
 | **Git 2.20+** | Required for worktree support |
 | **[Claude Code CLI](https://claude.ai/code)** | Required |
 | **[GitHub CLI](https://cli.github.com/)** | Optional (for PR automation) |
-| **jq** | Required (`brew install jq`) |
 
 ### Installation
 
 ```bash
-# One-liner install
-curl -fsSL https://raw.githubusercontent.com/reshashi/claude-orchestrator/main/install.sh | bash
+# Clone the orchestrator
+git clone https://github.com/reshashi/claude-orchestrator.git ~/.claude-orchestrator
 
-# Restart your terminal
-source ~/.zshrc
+# Install dependencies and build
+cd ~/.claude-orchestrator
+npm install
+npm run build
+
+# Add to PATH (add to your shell profile)
+export PATH="$HOME/.claude-orchestrator/bin:$PATH"
 ```
 
 ### Basic Usage
@@ -96,21 +101,25 @@ cd your-project && claude
 # 4. Monitor progress (silently in background)
 # 5. Review against requirements
 # 6. Iterate if needed (up to 3x)
-# 7. Notify you when complete (macOS notification)
-
-# You can work in other apps while it runs!
+# 7. Notify you when complete
 ```
 
 **Option 2: Manual Worker Spawning**
 
 ```bash
-# Spawn workers manually
+# Spawn workers manually (creates worktree + starts background process)
 /spawn auth-db "Create users table migration"
 /spawn auth-api "Implement login/logout API routes"
 /spawn auth-ui "Build login form component"
 
 # Monitor progress
-/status
+claude-orchestrator status
+
+# List all workers
+claude-orchestrator list
+
+# Read worker output
+claude-orchestrator read auth-db
 
 # Merge when ready
 /merge auth-db
@@ -119,14 +128,13 @@ cd your-project && claude
 **Option 3: Fully Automated Loop**
 
 ```bash
-# Start automation loop (runs in background)
-orchestrator-start
+# Start automation loop (monitors all workers)
+claude-orchestrator loop
 
 # Check status anytime
-orchestrator-status
+claude-orchestrator status
 
-# Stop when done
-orchestrator-stop
+# Stop with Ctrl+C
 ```
 
 ### Commands Reference
@@ -140,96 +148,66 @@ orchestrator-stop
 | `/review` | Run QA Guardian on PRs |
 | `/deploy` | Run DevOps deployment checks |
 | `/assistant remember "fact"` | Store facts to persistent memory |
-| `/assistant recall "topic"` | Search memory for relevant facts |
-| `/assistant session-end` | Generate session handoff summary |
 
-See [docs/MEMORY.md](docs/MEMORY.md) for full memory system documentation.
-
-### Update / Uninstall
+### CLI Commands
 
 ```bash
-# Update to latest version
-~/.claude-orchestrator/install.sh --update
+# Spawn a new worker
+claude-orchestrator spawn <name> <task> [--repo <name>] [--no-start]
 
-# Uninstall
-~/.claude-orchestrator/uninstall.sh
+# List workers
+claude-orchestrator list [--all]
+
+# Check status
+claude-orchestrator status [worker-id]
+
+# Read output
+claude-orchestrator read <worker-id> [--lines N]
+
+# Send message to worker
+claude-orchestrator send <worker-id> <message>
+
+# Stop worker
+claude-orchestrator stop <worker-id>
+
+# Merge PR
+claude-orchestrator merge <worker-id>
+
+# Cleanup completed workers
+claude-orchestrator cleanup [worker-id]
+
+# Run monitoring loop
+claude-orchestrator loop [--poll <ms>]
 ```
 
 ---
 
 ## Release Notes
 
-### v2.4 (Latest) — 2026-01-14
+### v3.0 (Latest) — 2026-01-22
+
+**🌍 Cross-Platform Support** — Now works on macOS, Linux, and Windows!
+
+- **Node.js Backend**: Replaced bash/AppleScript with TypeScript
+- **Background Processes**: Workers run as child processes, not iTerm tabs
+- **JSONL Streaming**: Parse Claude's `--print` output in real-time
+- **State Persistence**: Worker state survives orchestrator restarts
+- **Cleaner CLI**: `claude-orchestrator` command with subcommands
+
+**Breaking Changes:**
+- No longer requires iTerm2 (or any specific terminal)
+- Workers run in background, not visible tabs
+- New CLI interface (see Commands Reference)
+
+---
+
+### v2.3 — 2026-01-13
 
 **🧠 Memory System** — Persistent memory across Claude sessions!
 
-Thanks to [@johnbongaarts](https://github.com/johnbongaarts) for this contribution!
-
 - **Memory System**: Store facts, tools, and context that persist across sessions
-- **`/assistant` Command**: New command for memory management and meta-tasks
+- **`/assistant` Command**: New command for memory management
 - **Session Summaries**: Generate handoff notes for next session
-- **Toolchain Registry**: Track tools and CLIs you use regularly
-
----
-
-### v2.3 — 2026-01-14
-
-**📊 Observability & Window Management** — See what's happening!
-
-- **`claude-orchestrator` Command**: Start Claude as orchestrator with window ID capture
-- **Window-Scoped Tabs**: Workers spawn in orchestrator's window only
-- **Structured JSON Logging**: Events logged to `~/.claude/logs/orchestrator.jsonl`
-- **Prometheus Metrics**: `/metrics` endpoint on port 9090
-- **Cost Tracking**: Per-project Claude API cost estimation
-- **Web Dashboard**: Real-time monitoring UI at localhost:8080
-
----
-
-### v2.2 — 2026-01-13
-
-**🎯 Focus-Stealing Fix** — Work in other apps while orchestrator runs!
-
-The orchestrator no longer steals window focus when sending input to workers.
-
-**What was fixed:**
-- ❌ **Before**: Every 5 seconds, iTerm would steal focus and interrupt your work
-- ✅ **After**: Orchestrator sends commands silently without activating iTerm window
-
-**Technical details:**
-```applescript
-# Before (v2.1 and earlier) - STEALS FOCUS
-tell application "iTerm"
-    activate  # <-- This brings iTerm to front
-    ...
-end tell
-
-# After (v2.2) - SILENT BACKGROUND OPERATION
-tell application "iTerm"
-    -- No activate command
-    tell current window
-        tell tab N
-            tell current session
-                write text "..."  # Works without focus!
-            end tell
-        end tell
-    end tell
-end tell
-```
-
-**Also fixed:**
-- `WORKER.md` → `WORKER_CLAUDE.md` filename reference
-
----
-
-### v2.1 — 2026-01-13
-
-**Enhanced Agent Usage**
-
-- **Security Scanning on All PRs**: Every PR gets `npm audit` scan
-- **Quality Agents in Planner Review Phase**: After all workers merge, runs `/review`, `/qcode`, `npm audit`, `/deploy`
-- **Lowered Code Simplifier Threshold**: Triggers on 50+ lines (was 100+)
-- **Pre-PR Quality Gates**: Workers run `type-check`, `lint`, `test` before creating PR
-- **Enhanced Agent Completion Detection**: More robust pattern matching
 
 ---
 
@@ -237,12 +215,9 @@ end tell
 
 **Autonomous Planner Layer** — Give Claude a concept. Walk away. Come back to working code.
 
-- **`/project` command**: Full autonomous project execution from concept to completion
+- **`/project` command**: Full autonomous project execution
 - **PRD Generation**: Automatically generates Product Requirements Documents
-- **Worker Task Breakdown**: Breaks projects into parallel worker tasks
-- **Iterative Review**: Reviews completed work against PRD, iterates up to 3x if needed
-- **Completion Notification**: macOS notification + terminal bell when done
-- **Built-in Quality Agents**: QA Guardian, DevOps Engineer, Code Simplifier, Planner
+- **Iterative Review**: Reviews completed work against PRD
 
 ---
 
@@ -252,44 +227,36 @@ end tell
 
 - Git worktree isolation for parallel workers
 - iTerm tab automation via AppleScript
-- `/spawn`, `/status`, `/merge` commands
 - Orchestrator loop for automated monitoring
-- Worker state machine (NEEDS_INIT → WORKING → PR_OPEN → MERGED)
 
 ---
 
 ## Troubleshooting
 
-### iTerm stealing focus / interrupting work
-
-**Fixed in v2.2!** Update to latest:
-```bash
-~/.claude-orchestrator/install.sh --update
-```
-
 ### Workers not starting
 
-1. Ensure iTerm2 is installed at `/Applications/iTerm.app`
-2. Grant accessibility permissions: System Preferences → Security & Privacy → Privacy → Accessibility
-3. Check worktree was created: `wt list <repo>`
+1. Ensure Claude CLI is installed and in PATH
+2. Check worktree was created: `ls ~/.worktrees/<repo>/`
+3. Check Node.js version: `node --version` (needs 18+)
 
-### Workers stuck waiting for input
+### Cannot connect to worker
 
-Fixed in v2.0. The orchestrator properly submits messages with Return keystroke.
-
-### AppleScript errors
-
-Grant accessibility permissions to iTerm2 and Terminal in System Preferences.
-
-### Commands not found
-
-Restart terminal or run: `source ~/.zshrc`
+Workers run in background. Use `claude-orchestrator read <name>` to see output.
 
 ### Git worktree conflicts
 
 ```bash
 git worktree list
 git worktree remove <path> --force
+```
+
+### Build errors
+
+```bash
+cd ~/.claude-orchestrator
+npm run clean
+npm install
+npm run build
 ```
 
 ---
@@ -310,7 +277,8 @@ For detailed documentation, see:
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Submit a pull request
+4. Run `npm run build` and `npm run test`
+5. Submit a pull request
 
 ---
 
