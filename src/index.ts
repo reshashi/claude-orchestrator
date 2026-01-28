@@ -10,6 +10,10 @@ export { WorkerManager } from './worker-manager.js';
 export { StateManager } from './state-manager.js';
 export { GitHub } from './github.js';
 
+// Export server
+export { createServer, startServer } from './server.js';
+export type { ServerConfig, ApiWorkerResponse } from './server.js';
+
 // Export utilities
 export { createLogger, createSilentLogger } from './logger.js';
 export { createJsonlParser, parseJsonlLine } from './jsonl-parser.js';

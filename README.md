@@ -4,7 +4,7 @@
 
 [![Cross-Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-blue.svg)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-3.0-green.svg)](https://github.com/reshashi/claude-orchestrator/releases/latest)
+[![Version](https://img.shields.io/badge/version-3.1-green.svg)](https://github.com/reshashi/claude-orchestrator/releases/latest)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org/)
 
 Based on [Boris Cherny's patterns](https://x.com/bcherny) (creator of Claude Code).
@@ -178,13 +178,98 @@ claude-orchestrator cleanup [worker-id]
 
 # Run monitoring loop
 claude-orchestrator loop [--poll <ms>]
+
+# Start HTTP/WebSocket API server
+claude-orchestrator serve [--port 3001] [--host localhost]
+```
+
+---
+
+## Moltbot Integration
+
+The orchestrator can be controlled from any messaging platform (Discord, Slack, Telegram, WhatsApp, etc.) via Moltbot.
+
+### Installation
+
+```bash
+# Via ClawdHub
+clawdhub install claude-orchestrator
+
+# Or manually
+cp -r ~/.claude-orchestrator/moltbot-skill ~/.clawdbot/skills/claude-orchestrator
+```
+
+### Starting the API Server
+
+```bash
+# Start the HTTP/WebSocket API server
+claude-orchestrator serve --port 3001
+
+# The server provides:
+# - REST API at http://localhost:3001/api
+# - WebSocket at ws://localhost:3001/ws/status
+```
+
+### API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/health` | Health check |
+| GET | `/api/workers` | List all workers |
+| GET | `/api/workers/:id` | Get worker status |
+| POST | `/api/workers` | Spawn new worker |
+| POST | `/api/workers/:id/send` | Send message to worker |
+| POST | `/api/workers/:id/stop` | Stop worker |
+| POST | `/api/workers/:id/merge` | Merge PR |
+| DELETE | `/api/workers/:id` | Cleanup worker |
+| WS | `/ws/status` | Real-time status updates |
+
+### Natural Language (via Moltbot)
+
+Users can speak naturally from any platform:
+
+```
+User: "spawn a worker called auth-api to implement JWT authentication"
+Bot:  Worker 'auth-api' spawned! Starting authentication implementation...
+
+User: "what's the status of my workers?"
+Bot:  Workers:
+      💻 auth-api        WORKING
+      📬 dark-mode       PR_OPEN   PR #42
+
+User: "merge the dark-mode worker"
+Bot:  PR #42 merged successfully!
+```
+
+### WebSocket Events
+
+Connect to `ws://localhost:3001/ws/status` for real-time updates:
+
+```json
+{"type":"state_change","workerId":"auth-api","from":"WORKING","to":"PR_OPEN"}
+{"type":"pr_detected","workerId":"auth-api","prNumber":42,"prUrl":"..."}
+{"type":"pr_merged","workerId":"auth-api","prNumber":42}
 ```
 
 ---
 
 ## Release Notes
 
-### v3.0 (Latest) — 2026-01-22
+### v3.1 (Latest) — 2026-01-28
+
+**🤖 Moltbot Integration** — Control from any messaging platform!
+
+- **HTTP API Server**: REST endpoints for all orchestrator commands
+- **WebSocket Support**: Real-time status updates
+- **Moltbot Skill**: Natural language control from Discord, Slack, Telegram, etc.
+- **Bridge Script**: Wrapper for CLI-to-API communication
+
+**New Commands:**
+- `claude-orchestrator serve` - Start HTTP/WebSocket API server
+
+---
+
+### v3.0 — 2026-01-22
 
 **🌍 Cross-Platform Support** — Now works on macOS, Linux, and Windows!
 

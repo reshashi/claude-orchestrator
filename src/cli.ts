@@ -15,10 +15,11 @@ import { Orchestrator } from './orchestrator.js';
 import { StateManager } from './state-manager.js';
 import { createLogger } from './logger.js';
 import { getStateEmoji, getStateDescription } from './state-machine.js';
+import { startServer } from './server.js';
 
 const execFileAsync = promisify(execFile);
 
-const VERSION = '2.0.0';
+const VERSION = '3.1.0';
 
 export function createCli(): Command {
   const program = new Command();
@@ -383,6 +384,78 @@ This worker owns all files related to this task. Coordinate with other workers i
 
       // Keep process running
       await new Promise(() => {});
+    });
+
+  // Serve command (runs HTTP/WebSocket API server)
+  program
+    .command('serve')
+    .description('Start the HTTP/WebSocket API server for Moltbot integration')
+    .option('-p, --port <number>', 'Port to listen on', '3001')
+    .option('-H, --host <string>', 'Host to bind to', 'localhost')
+    .option('--poll <ms>', 'Poll interval for orchestrator loop', '5000')
+    .action(async (options) => {
+      const logger = createLogger({
+        level: 'info',
+        logFile: path.join(os.homedir(), '.claude', 'orchestrator.log'),
+      });
+
+      const port = parseInt(options.port, 10);
+      const host = options.host;
+
+      // Create and initialize orchestrator
+      const orchestrator = new Orchestrator({
+        logger,
+        config: {
+          pollIntervalMs: parseInt(options.poll, 10),
+        },
+      });
+
+      await orchestrator.initialize();
+
+      // Start the orchestrator loop
+      orchestrator.start();
+
+      // Start the HTTP server
+      try {
+        const server = await startServer({
+          port,
+          host,
+          logger,
+          orchestrator,
+        });
+
+        console.log('');
+        console.log('Claude Orchestrator API Server');
+        console.log('══════════════════════════════════════════════');
+        console.log(`HTTP API:    http://${host}:${port}/api`);
+        console.log(`WebSocket:   ws://${host}:${port}/ws/status`);
+        console.log(`Health:      http://${host}:${port}/api/health`);
+        console.log('');
+        console.log('Endpoints:');
+        console.log('  GET    /api/workers          - List all workers');
+        console.log('  GET    /api/workers/:id      - Get worker status');
+        console.log('  POST   /api/workers          - Spawn new worker');
+        console.log('  POST   /api/workers/:id/send - Send message');
+        console.log('  POST   /api/workers/:id/stop - Stop worker');
+        console.log('  POST   /api/workers/:id/merge - Merge PR');
+        console.log('  DELETE /api/workers/:id      - Cleanup worker');
+        console.log('  WS     /ws/status            - Real-time updates');
+        console.log('');
+        console.log('Press Ctrl+C to stop.');
+
+        process.on('SIGINT', async () => {
+          console.log('\nShutting down...');
+          orchestrator.stop();
+          await server.close();
+          process.exit(0);
+        });
+
+        // Keep process running
+        await new Promise(() => {});
+      } catch (err) {
+        console.error(`Failed to start server: ${err}`);
+        process.exit(1);
+      }
     });
 
   return program;
