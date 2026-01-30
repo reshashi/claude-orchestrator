@@ -152,7 +152,9 @@ cleanup() {
 }
 trap cleanup SIGINT SIGTERM
 
-# Load orchestrator memory (three-tier)
+# ============================================================
+# THREE-TIER MEMORY LOADING
+# ============================================================
 log "Loading orchestrator memory..."
 
 SEED_DIR="$HOME/.claude/orchestrator/seed"
@@ -180,6 +182,10 @@ if [ -d "$PROJECT_DIR/orchestrator" ]; then
 fi
 
 log "Three-tier memory loaded - ready to coordinate workers"
+
+# ============================================================
+# END THREE-TIER MEMORY LOADING
+# ============================================================
 
 get_state() {
     cat "$STATE_DIR/tab${1}_state" 2>/dev/null || echo "UNKNOWN"

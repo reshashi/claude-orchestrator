@@ -1,11 +1,13 @@
 ---
-description: Manage and communicate with worker sessions (list, read, send, init)
-allowed-tools: Bash(~/.claude/scripts/orchestrator.sh:*), Bash(osascript:*)
+description: Manage and communicate with worker sessions (list, read, send, status)
+allowed-tools: Bash(node:*), Bash(npx:*)
 ---
 
 # Worker Management
 
-Orchestrator commands for managing Claude worker sessions in iTerm tabs.
+Commands for managing Claude worker sessions running as background processes.
+
+**Platform**: Cross-platform (macOS, Linux, Windows)
 
 ## Arguments
 - $ARGUMENTS: Command and parameters
@@ -14,44 +16,92 @@ Orchestrator commands for managing Claude worker sessions in iTerm tabs.
 
 ### List all workers
 ```bash
-~/.claude/scripts/orchestrator.sh list
+cd ~/.claude-orchestrator && node dist/index.js list
 ```
 
-### Read output from a worker tab
+### List all workers (including completed)
 ```bash
-# Read last 50 lines from tab 2
-~/.claude/scripts/orchestrator.sh read 2 50
+cd ~/.claude-orchestrator && node dist/index.js list --all
+```
+
+### Get worker status
+```bash
+# Summary of all workers
+cd ~/.claude-orchestrator && node dist/index.js status
+
+# Detailed status of specific worker
+cd ~/.claude-orchestrator && node dist/index.js status worker-name
+```
+
+### Read output from a worker
+```bash
+# Read last 50 lines (default)
+cd ~/.claude-orchestrator && node dist/index.js read worker-name
+
+# Read last N lines
+cd ~/.claude-orchestrator && node dist/index.js read worker-name --lines 100
 ```
 
 ### Send message to a worker
 ```bash
-~/.claude/scripts/orchestrator.sh send 2 "Your message here"
+cd ~/.claude-orchestrator && node dist/index.js send worker-name "Your message here"
 ```
 
-### Initialize a worker with its task
+### Stop a worker
 ```bash
-~/.claude/scripts/orchestrator.sh init 2 "worker-name"
+cd ~/.claude-orchestrator && node dist/index.js stop worker-name
 ```
 
-### Initialize all workers from session log
+### Trigger merge for a worker
 ```bash
-~/.claude/scripts/orchestrator.sh init-all
+cd ~/.claude-orchestrator && node dist/index.js merge worker-name
 ```
 
-### List open PRs
+### Clean up completed workers
 ```bash
-~/.claude/scripts/orchestrator.sh prs
+# Clean up specific worker
+cd ~/.claude-orchestrator && node dist/index.js cleanup worker-name
+
+# Clean up all completed workers
+cd ~/.claude-orchestrator && node dist/index.js cleanup
+```
+
+### Run the monitoring loop
+```bash
+# Start monitoring loop (Ctrl+C to stop)
+cd ~/.claude-orchestrator && node dist/index.js loop
+
+# Custom poll interval (milliseconds)
+cd ~/.claude-orchestrator && node dist/index.js loop --poll 10000
 ```
 
 ## Instructions
 
 Parse `$ARGUMENTS` and execute the appropriate command:
 
-1. If "list" or "status" → run `~/.claude/scripts/orchestrator.sh list`
-2. If "read <tab>" → run `~/.claude/scripts/orchestrator.sh read <tab> 50`
-3. If "send <tab> <message>" → run `~/.claude/scripts/orchestrator.sh send <tab> "<message>"`
-4. If "init <tab> <name>" → run `~/.claude/scripts/orchestrator.sh init <tab> "<name>"`
-5. If "init-all" → run `~/.claude/scripts/orchestrator.sh init-all`
-6. If "prs" → run `~/.claude/scripts/orchestrator.sh prs`
+1. If "list" or "ls" → run `node dist/index.js list`
+2. If "status [name]" → run `node dist/index.js status [name]`
+3. If "read <name>" → run `node dist/index.js read <name>`
+4. If "send <name> <message>" → run `node dist/index.js send <name> "<message>"`
+5. If "stop <name>" → run `node dist/index.js stop <name>`
+6. If "merge <name>" → run `node dist/index.js merge <name>`
+7. If "cleanup [name]" → run `node dist/index.js cleanup [name]`
+8. If "loop" → run `node dist/index.js loop`
 
 Report results back to the user.
+
+## Worker States
+
+Workers progress through these states:
+
+| State | Emoji | Description |
+|-------|-------|-------------|
+| SPAWNING | 🚀 | Process starting |
+| INITIALIZING | ⏳ | Claude loading |
+| WORKING | ⚡ | Actively processing |
+| PR_OPEN | 📝 | PR created, awaiting review |
+| REVIEWING | 🔍 | QA review in progress |
+| MERGING | 🔄 | PR being merged |
+| MERGED | ✅ | Complete |
+| ERROR | ❌ | Needs intervention |
+| STOPPED | ⏹️ | Terminated |
