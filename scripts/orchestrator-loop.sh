@@ -152,6 +152,41 @@ cleanup() {
 }
 trap cleanup SIGINT SIGTERM
 
+# ============================================================
+# THREE-TIER MEMORY LOADING
+# ============================================================
+log "Loading orchestrator memory..."
+
+SEED_DIR="$HOME/.claude/orchestrator/seed"
+USER_DIR="$HOME/.claude/orchestrator/user"
+PROJECT_DIR="$PWD/.claude/memory"
+
+# Load seed onboarding
+if [ -f "$SEED_DIR/orchestrator-onboarding.md" ]; then
+    log "Loaded seed memory (orchestrator training)"
+fi
+
+# Load user preferences
+if [ -f "$USER_DIR/preferences.json" ]; then
+    log "Loaded user preferences"
+fi
+
+# Load or initialize project memory
+if [ ! -d "$PROJECT_DIR" ]; then
+    log "Initializing project memory for first time..."
+    "$HOME/.claude/scripts/init-project-memory.sh" "$PWD"
+fi
+
+if [ -d "$PROJECT_DIR/orchestrator" ]; then
+    log "Loaded project orchestrator memory"
+fi
+
+log "Three-tier memory loaded - ready to coordinate workers"
+
+# ============================================================
+# END THREE-TIER MEMORY LOADING
+# ============================================================
+
 get_state() {
     cat "$STATE_DIR/tab${1}_state" 2>/dev/null || echo "UNKNOWN"
 }

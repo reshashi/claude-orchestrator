@@ -7,7 +7,7 @@
 
 set -e
 
-MEMORY_DIR="${CLAUDE_MEMORY_DIR:-$HOME/.claude/memory}"
+MEMORY_DIR="${CLAUDE_MEMORY_DIR:-$HOME/.claude/orchestrator/global}"
 TOOLCHAIN_FILE="$MEMORY_DIR/toolchain.json"
 REPOS_FILE="$MEMORY_DIR/repos.json"
 FACTS_FILE="$MEMORY_DIR/facts.json"
