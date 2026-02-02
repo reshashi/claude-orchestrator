@@ -149,6 +149,14 @@ export interface OrchestratorConfig {
   logFile: string;               // Path to log file
   autoMerge: boolean;            // Whether to auto-merge passed PRs
   autoReview: boolean;           // Whether to auto-run QA review
+  memory?: MemoryConfig;         // Memory persistence configuration
+}
+
+// Memory system configuration
+export interface MemoryConfig {
+  enabled: boolean;              // Whether to enable memory persistence
+  dataDir: string;               // Where to store memory database
+  dbPath?: string;               // Optional custom database path
 }
 
 // Logger interface

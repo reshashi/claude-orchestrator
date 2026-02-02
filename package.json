@@ -1,7 +1,7 @@
 {
   "name": "claude-orchestrator",
-  "version": "3.1.0",
-  "description": "Cross-platform Claude Code worker orchestration with background processes and HTTP API",
+  "version": "3.2.0",
+  "description": "Cross-platform Claude Code worker orchestration with background processes, HTTP API, and persistent memory",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
@@ -24,11 +24,13 @@
     "commander": "^12.1.0",
     "fastify": "^4.26.0",
     "@fastify/websocket": "^10.0.0",
-    "@fastify/cors": "^9.0.0"
+    "@fastify/cors": "^9.0.0",
+    "better-sqlite3": "^11.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
     "@types/ws": "^8.5.10",
+    "@types/better-sqlite3": "^7.6.8",
     "typescript": "^5.3.0",
     "vitest": "^1.2.0"
   },

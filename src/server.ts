@@ -15,6 +15,7 @@ import type { WebSocket } from 'ws';
 import { Orchestrator } from './orchestrator.js';
 import { StateManager } from './state-manager.js';
 import type { Logger, WorkerEvent, PersistedWorkerState } from './types.js';
+import type { SearchOptions, ObservationFilter } from './memory/types.js';
 
 export interface ServerConfig {
   port: number;
@@ -122,12 +123,25 @@ export async function createServer(config: ServerConfig): Promise<FastifyInstanc
       !['MERGED', 'STOPPED', 'ERROR'].includes(w.state)
     ).length;
 
+    // Get memory stats if available
+    const memoryService = orchestrator!.getMemoryService();
+    const memoryEnabled = memoryService?.isInitialized() ?? false;
+    const memoryStats = memoryEnabled ? memoryService?.getStats() : null;
+
     return reply.send({
       status: 'healthy',
-      version: '3.1.0',
+      version: '3.2.0',
       activeWorkers: activeCount,
       totalWorkers: workers.length,
       timestamp: new Date().toISOString(),
+      memory: memoryEnabled ? {
+        enabled: true,
+        observations: memoryStats?.observations ?? 0,
+        sessions: memoryStats?.sessions ?? 0,
+        currentSessionId: memoryStats?.currentSessionId ?? null,
+      } : {
+        enabled: false,
+      },
     });
   });
 
@@ -416,6 +430,222 @@ export async function createServer(config: ServerConfig): Promise<FastifyInstanc
         error: `Failed to cleanup: ${err}`,
       });
     }
+  });
+
+  // ==========================================
+  // Memory API
+  // ==========================================
+
+  // Search memory
+  interface MemorySearchQuery {
+    q: string;
+    limit?: string;
+    offset?: string;
+    sessionId?: string;
+    workerId?: string;
+    type?: string;
+    since?: string;
+  }
+
+  fastify.get<{ Querystring: MemorySearchQuery }>(
+    '/api/memory/search',
+    async (request, reply) => {
+      const memoryService = orchestrator!.getMemoryService();
+      if (!memoryService?.isInitialized()) {
+        return reply.status(503).send({
+          error: 'Memory service not available',
+        });
+      }
+
+      const { q, limit, offset, sessionId, workerId, type, since } = request.query;
+
+      if (!q) {
+        return reply.status(400).send({
+          error: 'Missing required query parameter: q',
+        });
+      }
+
+      const options: SearchOptions = {
+        limit: limit ? parseInt(limit, 10) : undefined,
+        offset: offset ? parseInt(offset, 10) : undefined,
+        sessionId,
+        workerId,
+        type: type as SearchOptions['type'],
+        since,
+      };
+
+      const { results, summary } = memoryService.searchWithSummary(q, options);
+
+      return reply.send({
+        query: q,
+        results: results.map(r => ({
+          id: r.observation.id,
+          workerId: r.observation.workerId,
+          type: r.observation.type,
+          content: r.observation.content,
+          snippet: r.snippet,
+          rank: r.rank,
+          createdAt: r.observation.createdAt,
+        })),
+        summary,
+      });
+    }
+  );
+
+  // List recent sessions
+  interface ListSessionsQuery {
+    limit?: string;
+  }
+
+  fastify.get<{ Querystring: ListSessionsQuery }>(
+    '/api/memory/sessions',
+    async (request, reply) => {
+      const memoryService = orchestrator!.getMemoryService();
+      if (!memoryService?.isInitialized()) {
+        return reply.status(503).send({
+          error: 'Memory service not available',
+        });
+      }
+
+      const limit = parseInt(request.query.limit ?? '10', 10);
+      const sessions = memoryService.getRecentSessions(limit);
+
+      return reply.send({
+        sessions,
+        currentSessionId: memoryService.getCurrentSessionId(),
+      });
+    }
+  );
+
+  // Get session by ID
+  interface GetSessionParams {
+    id: string;
+  }
+
+  fastify.get<{ Params: GetSessionParams }>(
+    '/api/memory/sessions/:id',
+    async (request, reply) => {
+      const memoryService = orchestrator!.getMemoryService();
+      if (!memoryService?.isInitialized()) {
+        return reply.status(503).send({
+          error: 'Memory service not available',
+        });
+      }
+
+      const { id } = request.params;
+      const session = memoryService.getSession(id);
+
+      if (!session) {
+        return reply.status(404).send({
+          error: `Session '${id}' not found`,
+        });
+      }
+
+      const timeline = memoryService.getSessionTimeline(id);
+
+      return reply.send({
+        session,
+        timeline,
+      });
+    }
+  );
+
+  // Get observations
+  interface GetObservationsQuery {
+    workerId?: string;
+    sessionId?: string;
+    type?: string;
+    limit?: string;
+    offset?: string;
+    since?: string;
+  }
+
+  fastify.get<{ Querystring: GetObservationsQuery }>(
+    '/api/memory/observations',
+    async (request, reply) => {
+      const memoryService = orchestrator!.getMemoryService();
+      if (!memoryService?.isInitialized()) {
+        return reply.status(503).send({
+          error: 'Memory service not available',
+        });
+      }
+
+      const { workerId, sessionId, type, limit, offset, since } = request.query;
+
+      const filter: ObservationFilter = {
+        workerId,
+        sessionId,
+        type: type as ObservationFilter['type'],
+        limit: limit ? parseInt(limit, 10) : undefined,
+        offset: offset ? parseInt(offset, 10) : undefined,
+        since,
+      };
+
+      const observations = memoryService.getObservations(filter);
+
+      return reply.send({ observations });
+    }
+  );
+
+  // Add custom observation
+  interface AddObservationBody {
+    workerId: string;
+    type: string;
+    content: string;
+    metadata?: Record<string, unknown>;
+  }
+
+  fastify.post<{ Body: AddObservationBody }>(
+    '/api/memory/observations',
+    async (request, reply) => {
+      const memoryService = orchestrator!.getMemoryService();
+      if (!memoryService?.isInitialized()) {
+        return reply.status(503).send({
+          error: 'Memory service not available',
+        });
+      }
+
+      const { workerId, type, content, metadata } = request.body;
+
+      if (!workerId || !type || !content) {
+        return reply.status(400).send({
+          error: 'Missing required fields: workerId, type, content',
+        });
+      }
+
+      try {
+        const observation = memoryService.captureObservation({
+          workerId,
+          type: type as 'custom',
+          content,
+          metadata,
+        });
+
+        return reply.status(201).send({ observation });
+      } catch (err) {
+        return reply.status(500).send({
+          error: `Failed to add observation: ${err}`,
+        });
+      }
+    }
+  );
+
+  // Get memory stats
+  fastify.get('/api/memory/stats', async (_request, reply) => {
+    const memoryService = orchestrator!.getMemoryService();
+    if (!memoryService?.isInitialized()) {
+      return reply.status(503).send({
+        error: 'Memory service not available',
+      });
+    }
+
+    const stats = memoryService.getStats();
+    const workerIds = memoryService.getWorkerIds();
+
+    return reply.send({
+      ...stats,
+      workerIds,
+    });
   });
 
   // ==========================================

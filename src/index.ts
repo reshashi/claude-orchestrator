@@ -30,10 +30,26 @@ export type {
   ClaudeMessage,
   PrStatus,
   OrchestratorConfig,
+  MemoryConfig,
   Logger,
   AgentType,
   ReviewStatus,
 } from './types.js';
+
+// Export memory module
+export { MemoryService, MemoryDatabase } from './memory/index.js';
+export type {
+  Observation,
+  NewObservation,
+  Session,
+  NewSession,
+  Summary,
+  NewSummary,
+  ObservationFilter,
+  SearchOptions,
+  SearchResult,
+  ObservationType,
+} from './memory/index.js';
 
 // CLI entry point
 export { createCli } from './cli.js';

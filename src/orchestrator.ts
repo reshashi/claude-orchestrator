@@ -20,6 +20,7 @@ import type {
 import { WorkerManager } from './worker-manager.js';
 import { StateManager } from './state-manager.js';
 import { GitHub } from './github.js';
+import { MemoryService } from './memory/index.js';
 import {
   needsIntervention,
   isTerminalState,
@@ -33,6 +34,10 @@ const DEFAULT_CONFIG: OrchestratorConfig = {
   logFile: path.join(os.homedir(), '.claude', 'orchestrator.log'),
   autoMerge: true,
   autoReview: true,
+  memory: {
+    enabled: true,
+    dataDir: path.join(os.homedir(), '.claude', 'memory'),
+  },
 };
 
 export interface OrchestratorOptions {
@@ -45,6 +50,7 @@ export class Orchestrator extends EventEmitter {
   private readonly logger: Logger;
   private readonly workerManager: WorkerManager;
   private readonly stateManager: StateManager;
+  private readonly memoryService: MemoryService | null = null;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private isRunning = false;
   private githubClients: Map<string, GitHub> = new Map();
@@ -65,6 +71,15 @@ export class Orchestrator extends EventEmitter {
       logger: this.logger,
     });
 
+    // Initialize memory service if enabled
+    if (this.config.memory?.enabled) {
+      this.memoryService = new MemoryService({
+        dataDir: this.config.memory.dataDir,
+        dbPath: this.config.memory.dbPath,
+        logger: this.logger,
+      });
+    }
+
     // Forward worker events
     this.workerManager.on('event', (event: WorkerEvent) => {
       this.handleWorkerEvent(event);
@@ -77,6 +92,14 @@ export class Orchestrator extends EventEmitter {
    */
   async initialize(): Promise<void> {
     await this.stateManager.initialize();
+
+    // Initialize memory service
+    if (this.memoryService) {
+      this.memoryService.initialize();
+      this.memoryService.startSession({
+        metadata: { startedAt: new Date().toISOString() },
+      });
+    }
 
     // Recover any workers that were running before restart
     const persistedWorkers = await this.stateManager.loadAllWorkerStates();
@@ -127,6 +150,12 @@ export class Orchestrator extends EventEmitter {
     if (this.pollTimer) {
       clearInterval(this.pollTimer);
       this.pollTimer = null;
+    }
+
+    // End memory session
+    if (this.memoryService?.isInitialized()) {
+      this.memoryService.endSession('Orchestrator stopped');
+      this.memoryService.shutdown();
     }
 
     this.logger.info('Orchestrator stopped');
@@ -382,6 +411,9 @@ export class Orchestrator extends EventEmitter {
    * Handle events from worker manager
    */
   private async handleWorkerEvent(event: WorkerEvent): Promise<void> {
+    // Capture to memory if enabled
+    this.captureEventToMemory(event);
+
     switch (event.type) {
       case 'state_change':
         await this.stateManager.saveWorkerState(
@@ -409,6 +441,66 @@ export class Orchestrator extends EventEmitter {
       case 'process_exit':
         // Clean up if process exited
         break;
+    }
+  }
+
+  /**
+   * Capture worker event to memory system
+   */
+  private captureEventToMemory(event: WorkerEvent): void {
+    if (!this.memoryService?.isInitialized()) return;
+
+    try {
+      switch (event.type) {
+        case 'state_change':
+          this.memoryService.captureStateChange(
+            event.workerId,
+            event.from,
+            event.to
+          );
+          break;
+
+        case 'pr_detected':
+          this.memoryService.capturePrEvent(
+            event.workerId,
+            'created',
+            event.prNumber,
+            event.prUrl
+          );
+          break;
+
+        case 'pr_merged':
+          this.memoryService.capturePrEvent(
+            event.workerId,
+            'merged',
+            event.prNumber
+          );
+          break;
+
+        case 'review_complete':
+          this.memoryService.captureObservation({
+            workerId: event.workerId,
+            type: 'pr_event',
+            content: `Review completed for worker ${event.workerId}: ${event.result}`,
+            metadata: { result: event.result },
+          });
+          break;
+
+        case 'error':
+          this.memoryService.captureError(event.workerId, event.error);
+          break;
+
+        case 'process_exit':
+          this.memoryService.captureObservation({
+            workerId: event.workerId,
+            type: 'state_change',
+            content: `Process exited for worker ${event.workerId} with code ${event.code}`,
+            metadata: { exitCode: event.code },
+          });
+          break;
+      }
+    } catch (err) {
+      this.logger.warn('Failed to capture event to memory', { error: String(err) });
     }
   }
 
@@ -455,6 +547,17 @@ export class Orchestrator extends EventEmitter {
 
     const worker = await this.workerManager.spawn(config);
     await this.stateManager.saveWorkerState(worker);
+
+    // Track in memory
+    if (this.memoryService?.isInitialized()) {
+      this.memoryService.incrementWorkerCount();
+      this.memoryService.captureObservation({
+        workerId: name,
+        type: 'state_change',
+        content: `Spawned worker ${name} with task: ${task.substring(0, 100)}`,
+        metadata: { task, repoName: effectiveRepoName, worktreePath, branchName },
+      });
+    }
 
     return worker;
   }
@@ -531,5 +634,12 @@ export class Orchestrator extends EventEmitter {
 
     this.workerManager.transitionState(workerId, 'MERGING');
     return await gh.mergePr(worker.prNumber, 'squash', true);
+  }
+
+  /**
+   * Get the memory service (for API access)
+   */
+  getMemoryService(): MemoryService | null {
+    return this.memoryService;
   }
 }

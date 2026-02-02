@@ -4,7 +4,7 @@
 
 [![Cross-Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-blue.svg)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-3.1-green.svg)](https://github.com/reshashi/claude-orchestrator/releases/latest)
+[![Version](https://img.shields.io/badge/version-3.2-green.svg)](https://github.com/reshashi/claude-orchestrator/releases/latest)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org/)
 
 ---
@@ -527,7 +527,24 @@ npm run build
 
 ## Release Notes
 
-### v3.1 (Latest) — 2026-01-28
+### v3.2 (Latest) — 2026-02-02
+
+**Persistent Memory System** — Claude-mem inspired memory integration!
+
+- SQLite-based persistent memory for worker observations
+- Full-text search across session history
+- Automatic capture of worker lifecycle events (state changes, PR events, errors)
+- Memory API endpoints for programmatic access
+- `/mem-search` command for natural language queries
+- Session-based organization with cleanup utilities
+
+New endpoints:
+- `GET /api/memory/search?q=<query>` - Search observations
+- `GET /api/memory/sessions` - List sessions
+- `GET /api/memory/observations` - Get observations
+- `POST /api/memory/observations` - Add custom observation
+
+### v3.1 — 2026-01-28
 
 **Moltbot Integration** — Control from any messaging platform!
 
@@ -580,6 +597,7 @@ MIT — see [LICENSE](LICENSE)
 ## Acknowledgments
 
 - [Boris Cherny](https://x.com/bcherny) — Creator of Claude Code and the parallel development patterns that inspired this project
+- [Alex Newman / thedotmack](https://github.com/thedotmack/claude-mem) — Creator of claude-mem, whose persistent memory system inspired the memory integration
 - [Anthropic](https://anthropic.com) — Claude AI
 
 ---
