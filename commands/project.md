@@ -26,6 +26,16 @@ Execute a complete project from a conceptual description. The Planner will:
 
 ## Instructions
 
+### Resuming After Context Compaction
+
+If you're resuming this project after context was compacted:
+1. Read the PRD file (check `~/.claude/project-state.json` for `prd_path`)
+2. Go directly to **Section 6: Execution Status** in the PRD
+3. The "Current State" tells you what phase you're in
+4. The "Phase Checklist" shows what's done
+5. The "Worker Status" table shows each worker's progress
+6. Resume from the appropriate phase below
+
 ### Phase 1: PRD Generation (CONCEPTUALIZING)
 
 Think deeply about the project requirements. Consider:
@@ -92,9 +102,49 @@ How to verify the project is complete:
 - [ ] `npm run test` passes
 - [ ] `npm run build` passes
 - [ ] `npm run type-check` passes
+
+## 6. Execution Status
+
+> **READ THIS FIRST AFTER CONTEXT COMPACTION**
+> This section is the source of truth for project progress.
+
+### Current State
+- **Phase**: CONCEPTUALIZING
+- **Iteration**: 1 of 3
+- **Started**: [timestamp]
+- **Last Updated**: [timestamp]
+
+### Phase Checklist
+- [x] Phase 1: PRD Generation
+- [ ] Phase 2: Workers Spawned
+- [ ] Phase 3: Workers Active
+- [ ] Phase 4: All Workers Merged
+- [ ] Phase 5: Review Complete
+- [ ] Phase 6: Quality Gates Passed
+- [ ] Phase 7: Deliverables Generated
+- [ ] Phase 8: Project Complete
+
+### Worker Status
+| Worker | Branch | Status | PR | Notes |
+|--------|--------|--------|-----|-------|
+| [name] | [branch] | pending/working/pr-open/merged | #N | |
+
+### Blockers & Issues
+- None yet
+
+### Quality Gate Results
+- [ ] `/review`: pending
+- [ ] `/qcode`: pending
+- [ ] Security scan: pending
+- [ ] Critical issues fixed: N/A
+
+### Log
+- [timestamp] Project created
 ```
 
 ### Phase 2: Initialize Project State (SPAWNING_WORKERS)
+
+**Update PRD Status**: Change Phase to `SPAWNING_WORKERS`, check off Phase 1, add log entry.
 
 Create the project state file:
 
@@ -117,6 +167,8 @@ JSONEOF
 
 ### Phase 3: Spawn Workers
 
+**Update PRD Status**: For each worker spawned, add a row to the Worker Status table.
+
 For each worker defined in the PRD:
 
 1. Run `/spawn [worker-name] "[task description]"`
@@ -131,6 +183,8 @@ After spawning all workers, update status:
 ```bash
 jq '.status = "workers_active"' ~/.claude/project-state.json > tmp.$$ && mv tmp.$$ ~/.claude/project-state.json
 ```
+
+**Update PRD Status**: Check off Phase 2, set Phase to `WORKERS_ACTIVE`, add log entry with worker count.
 
 ### Phase 4: Start Orchestrator Loop
 
@@ -157,6 +211,8 @@ When all workers have merged, the orchestrator will send:
 
 ### Phase 6: Review Merged Work (REVIEWING)
 
+**Update PRD Status**: Check off Phases 3-4, set Phase to `REVIEWING`, update all workers to `merged`, add log entry.
+
 Read the PRD success criteria from `${REPO_ROOT}/prds/${PRD_FILENAME}` (path stored in project-state.json as `prd_path`)
 
 Review the merged code:
@@ -176,6 +232,8 @@ Create a review report:
 - What specific fixes are needed?
 
 ### Phase 6.5: Run Quality Agents (QUALITY_GATES)
+
+**Update PRD Status**: Check off Phase 5, set Phase to `QUALITY_GATES`. After each agent runs, update Quality Gate Results section.
 
 **IMPORTANT**: Run the quality agents to ensure the combined work meets standards.
 
@@ -219,6 +277,8 @@ After running the agents, document:
 - DevOps: Deployment ready (if applicable)
 
 ### Phase 6.6: Address Review Findings (REMEDIATION)
+
+**Update PRD Status**: Add any blockers/issues found. Update Quality Gate Results as issues are fixed.
 
 **IMPORTANT**: Act on the review findings immediately.
 
@@ -285,6 +345,8 @@ osascript -e 'display notification "After 3 iterations, some requirements still 
 
 ### Phase 8: Generate Deliverables (GENERATING_DELIVERABLES)
 
+**Update PRD Status**: Check off Phase 6, set Phase to `GENERATING_DELIVERABLES`, add log entry.
+
 Create the deliverables directory:
 ```bash
 mkdir -p ~/.claude/deliverables/${PROJECT_NAME}
@@ -347,6 +409,8 @@ Display the Slack post to the user for review and copying.
 
 ### Phase 10: Notify Human (PROJECT_COMPLETE)
 
+**Update PRD Status**: Check off Phases 7-8, set Phase to `COMPLETE`, add final log entry with completion timestamp.
+
 Update project state:
 ```bash
 jq '.status = "complete" | .completed_at = "$(date -u +%Y-%m-%dT%H:%M:%SZ)"' ~/.claude/project-state.json > tmp.$$ && mv tmp.$$ ~/.claude/project-state.json
@@ -387,6 +451,7 @@ SLACK POST (copy to #channel):
 - **Autonomous Operation**: After you type `/project`, you can walk away. You'll be notified when complete.
 - **Standard Quality Process**: Every project runs `/review` and `/qcode`. Critical issues are fixed immediately; suggestions go to `TASKS_BACKLOG.md`.
 - **Stakeholder Communication**: Every project generates a non-technical Slack post explaining what was done, why, and how to test.
+- **Context Recovery**: The PRD's "Execution Status" section is the source of truth. After context compaction, read the PRD first to understand current state before resuming work.
 
 ## Example
 
