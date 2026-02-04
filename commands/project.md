@@ -9,9 +9,11 @@ Execute a complete project from a conceptual description. The Planner will:
 1. Generate a comprehensive PRD
 2. Break work into parallel tasks
 3. Spawn and manage workers
-4. Review completed work
-5. Iterate if needed (max 3 times)
-6. Deliver summary and notify you
+4. Review completed work (`/review` + `/qcode`)
+5. Fix critical issues, add suggestions to `TASKS_BACKLOG.md`
+6. Iterate if needed (max 3 times)
+7. Generate Slack post for stakeholders
+8. Deliver summary and notify you
 
 ## Arguments
 - $ARGUMENTS: The project description (what you want to build)
@@ -216,6 +218,49 @@ After running the agents, document:
 - Security: Vulnerabilities found (or "Clean")
 - DevOps: Deployment ready (if applicable)
 
+### Phase 6.6: Address Review Findings (REMEDIATION)
+
+**IMPORTANT**: Act on the review findings immediately.
+
+1. **Fix Critical Issues**: For any 🔴 Critical issues found by `/review`:
+   - Fix them NOW before proceeding
+   - Run the failing checks again to verify
+   - These MUST be resolved before merge
+
+2. **Add Backlog Items**: For 🟡 Important and 🟢 Suggestions:
+   - Create or update `TASKS_BACKLOG.md` in the repo root
+   - Add each suggestion as a task with context
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+BACKLOG_FILE="${REPO_ROOT}/TASKS_BACKLOG.md"
+
+# Create backlog file if it doesn't exist
+if [ ! -f "$BACKLOG_FILE" ]; then
+  cat > "$BACKLOG_FILE" << 'EOF'
+# Tasks Backlog
+
+Suggestions and future work items captured during development.
+
+## Format
+- **[Priority]** Description — Source: [project/review date]
+
+---
+
+## Pending Tasks
+
+EOF
+fi
+```
+
+Append new items to the backlog:
+```markdown
+### From Project: ${PROJECT_NAME} ($(date +%Y-%m-%d))
+
+- **[Important]** [issue description] — [file:line if applicable]
+- **[Suggestion]** [suggestion description]
+```
+
 If any agent finds critical issues, add them to the requirements check.
 
 ### Phase 7: Decision Point
@@ -256,7 +301,51 @@ Generate SUMMARY.md with:
 
 Generate USAGE_GUIDE.md if the project warrants it.
 
-### Phase 9: Notify Human (PROJECT_COMPLETE)
+### Phase 9: Generate Slack Post (COMMUNICATION)
+
+**IMPORTANT**: Generate a Slack-ready post for non-technical stakeholders.
+
+Create `SLACK_POST.md` in the deliverables directory:
+
+```bash
+cat > ~/.claude/deliverables/${PROJECT_NAME}/SLACK_POST.md << 'SLACKEOF'
+# Slack Post: ${PROJECT_NAME}
+
+Copy the content below into Slack:
+
+---
+
+## 🚀 [Project Title] - Complete!
+
+### What We Did
+[1-2 sentences explaining the feature/change in plain English. No technical jargon.]
+
+### Why It Matters
+[1-2 sentences on the business value or user benefit.]
+
+### How to Test
+1. [Step 1 - simple action anyone can do]
+2. [Step 2]
+3. [Expected result]
+
+### Links
+- PR: [link if applicable]
+- Demo: [link if applicable]
+
+---
+SLACKEOF
+```
+
+**Guidelines for the Slack post**:
+- Use plain English (no code, no technical terms)
+- Focus on WHAT changed and WHY it matters to users/business
+- Testing steps should be actionable by a non-developer
+- Keep it under 150 words
+- Use emojis sparingly for visual appeal
+
+Display the Slack post to the user for review and copying.
+
+### Phase 10: Notify Human (PROJECT_COMPLETE)
 
 Update project state:
 ```bash
@@ -281,6 +370,12 @@ PROJECT COMPLETE: ${PROJECT_NAME}
 [Contents of SUMMARY.md]
 
 ========================================
+SLACK POST (copy to #channel):
+========================================
+
+[Contents of SLACK_POST.md]
+
+========================================
 ```
 
 ## Important Notes
@@ -290,6 +385,8 @@ PROJECT COMPLETE: ${PROJECT_NAME}
 - **Iteration Limit**: Maximum 3 feedback iterations before escalating to human.
 - **Quality Gates**: Each worker PR goes through QA Guardian review automatically.
 - **Autonomous Operation**: After you type `/project`, you can walk away. You'll be notified when complete.
+- **Standard Quality Process**: Every project runs `/review` and `/qcode`. Critical issues are fixed immediately; suggestions go to `TASKS_BACKLOG.md`.
+- **Stakeholder Communication**: Every project generates a non-technical Slack post explaining what was done, why, and how to test.
 
 ## Example
 
@@ -305,5 +402,28 @@ This will:
 1. Generate PRD at `/prds/PRD-2026-01-13-add-a-dark-mode-toggle-that.md`
 2. Spawn 2-3 workers (theme-config, toggle-ui, css-vars)
 3. Monitor until all PRs merge
-4. Review against success criteria
-5. Generate summary and notify you
+4. Run `/review` and `/qcode` quality checks
+5. Fix any critical issues immediately
+6. Add suggestions to `TASKS_BACKLOG.md`
+7. Generate Slack post for stakeholders
+8. Deliver summary and notify you
+
+### Example Slack Post Output
+
+```
+🚀 Dark Mode Toggle - Complete!
+
+**What We Did**
+Added a dark mode toggle to the site header that remembers your preference.
+
+**Why It Matters**
+Users can now choose their preferred viewing experience, reducing eye strain and improving accessibility.
+
+**How to Test**
+1. Visit any page on the site
+2. Click the moon/sun icon in the top-right corner
+3. The theme should switch and persist when you refresh
+
+**Links**
+- PR: #42
+```
