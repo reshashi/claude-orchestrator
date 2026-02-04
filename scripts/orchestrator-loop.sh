@@ -1,5 +1,8 @@
 #!/bin/bash
-set -e
+# Note: set -e intentionally omitted. osascript and iTerm automation commands
+# often return non-zero exit codes even on success (e.g., querying a window
+# that doesn't exist, checking tab states). Using set -e causes silent exits
+# that are difficult to debug. Error handling is done explicitly where needed.
 
 REPO_NAME="${REPO_NAME:-medicalbills}"
 REPO_FULL="Mudunuri-Ventures/$REPO_NAME"
