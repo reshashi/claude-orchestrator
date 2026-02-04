@@ -12,18 +12,24 @@ LOG_LEVEL="${LOG_LEVEL:-info}"  # debug, info, warn, error
 mkdir -p "$LOG_DIR"
 
 # Log level priorities (lower = more verbose)
-declare -A LOG_LEVELS=(
-    ["debug"]=0
-    ["info"]=1
-    ["warn"]=2
-    ["error"]=3
-)
+# Using function instead of associative array for bash 3.2 compatibility (macOS stock bash)
+get_log_level_priority() {
+    case "$1" in
+        debug) echo 0 ;;
+        info)  echo 1 ;;
+        warn)  echo 2 ;;
+        error) echo 3 ;;
+        *)     echo 1 ;;
+    esac
+}
 
 # Check if a level should be logged based on LOG_LEVEL setting
 should_log() {
     local level="$1"
-    local current_priority="${LOG_LEVELS[$LOG_LEVEL]:-1}"
-    local level_priority="${LOG_LEVELS[$level]:-1}"
+    local current_priority
+    local level_priority
+    current_priority=$(get_log_level_priority "$LOG_LEVEL")
+    level_priority=$(get_log_level_priority "$level")
     [ "$level_priority" -ge "$current_priority" ]
 }
 
@@ -294,6 +300,7 @@ rotate_logs() {
 }
 
 # Export functions for subshells
+export -f get_log_level_priority
 export -f log_event log_debug log_info log_warn log_error
 export -f log_orchestrator_started log_orchestrator_stopped
 export -f log_worker_state_change log_worker_initialized log_worker_nudged log_worker_closed

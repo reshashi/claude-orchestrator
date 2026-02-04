@@ -86,6 +86,16 @@ error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+# Portable version comparison (works on BSD/macOS without GNU sort -V)
+# Returns 0 if $1 >= $2, 1 otherwise
+version_ge() {
+    local v1="$1"
+    local v2="$2"
+    # Compare using sort with numeric sorting on dot-separated fields
+    # If the smaller version comes first after sorting, v1 >= v2
+    [ "$(printf '%s\n%s' "$v2" "$v1" | sort -t '.' -k1,1n -k2,2n -k3,3n | head -n1)" = "$v2" ]
+}
+
 # Check if running from curl (no script directory)
 is_curl_install() {
     [[ ! -f "$(dirname "$0")/scripts/orchestrator.sh" ]]
@@ -151,6 +161,19 @@ check_prerequisites() {
     fi
     success "macOS detected"
 
+    # Bash version check (scripts require bash 4.0+)
+    local bash_version="${BASH_VERSION%%[^0-9.]*}"
+    local bash_major="${bash_version%%.*}"
+    if [[ "$bash_major" -lt 4 ]]; then
+        warn "Bash version $BASH_VERSION detected. Scripts require bash 4.0+"
+        warn "macOS ships with bash 3.2 due to licensing. Install modern bash:"
+        warn "  brew install bash"
+        warn "  Add /opt/homebrew/bin/bash to /etc/shells"
+        warn "Scripts will still work if shebangs point to Homebrew bash."
+    else
+        success "Bash $BASH_VERSION (4.0+ requirement: OK)"
+    fi
+
     # iTerm2 check (required)
     if [[ ! -d "/Applications/iTerm.app" ]]; then
         error "iTerm2 not found at /Applications/iTerm.app"
@@ -168,7 +191,7 @@ check_prerequisites() {
         # Check git version for worktree support
         local git_version
         git_version=$(git --version | awk '{print $3}')
-        if [[ "$(printf '%s\n' "2.20" "$git_version" | sort -V | head -n1)" != "2.20" ]]; then
+        if ! version_ge "$git_version" "2.20"; then
             warn "Git version $git_version may have limited worktree support. Recommend 2.20+"
         else
             success "Git $git_version (worktree support: OK)"
