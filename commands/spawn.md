@@ -11,7 +11,14 @@ Create an isolated worktree for parallel development, then start a Claude worker
 
 ## Arguments
 - $1: Session name (e.g., "auth-flow", "billing-parser")
-- $2: Task description (quoted string describing what this worker should do)
+- $ARGUMENTS: Task description (everything after the session name)
+
+Note: Use `$ARGUMENTS` instead of `$2` for the task description. `$ARGUMENTS` captures
+the full task text even if not quoted, while `$2` only works for properly quoted strings.
+
+Example usage:
+- `/spawn auth-flow implement user authentication with OAuth` → $1="auth-flow", $ARGUMENTS="implement user authentication with OAuth"
+- `/spawn ui-form "Create login form"` → $1="ui-form", $ARGUMENTS="Create login form"
 
 ## Current Repository
 - Repo root: !`git rev-parse --show-toplevel`
@@ -19,8 +26,8 @@ Create an isolated worktree for parallel development, then start a Claude worker
 
 ## Instructions
 
-1. Extract the session name from $1: `$1`
-2. Extract the task description: `$ARGUMENTS`
+1. Extract the session name: `$1`
+2. Extract the task description: `$ARGUMENTS` (contains everything after session name)
 
 3. Create the worktree:
 ```bash
