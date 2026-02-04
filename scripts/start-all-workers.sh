@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Start multiple Claude workers in new iTerm tabs
 # Usage: start-all-workers.sh worker1 worker2 worker3 ...
 # Example: start-all-workers.sh privacy-policy terms-of-service legal-components

@@ -139,9 +139,17 @@ All automatic. All in the background.
 | Requirement | Why |
 |-------------|-----|
 | **Node.js 18+** | Orchestrator runtime |
+| **Bash 4.0+** | Required for associative arrays in scripts |
 | **Git 2.20+** | Worktree support |
 | **[Claude Code CLI](https://claude.ai/code)** | The AI that does the work |
 | **[GitHub CLI](https://cli.github.com/)** | PR automation (optional but recommended) |
+
+> **macOS users:** macOS ships with Bash 3.2 (from 2007) due to GPL licensing. Install modern Bash via Homebrew:
+> ```bash
+> brew install bash
+> # Bash 5.x will be installed to /opt/homebrew/bin/bash (Apple Silicon) or /usr/local/bin/bash (Intel)
+> # The installer will detect it automatically via PATH
+> ```
 
 ### Install the Orchestrator
 

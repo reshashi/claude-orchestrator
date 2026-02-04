@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Metrics collection utilities for Claude Orchestrator
 # Usage: source this file, then call metric_* functions
 

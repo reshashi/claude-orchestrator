@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Claude Code Orchestrator - Uninstall Script
 #
 # Usage: ./uninstall.sh

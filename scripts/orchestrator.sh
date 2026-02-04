@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Orchestrator utilities for managing Claude worker sessions
 # Source this or use individual functions
 

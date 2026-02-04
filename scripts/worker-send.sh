@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Send a command/message to a worker tab
 # Usage: worker-send.sh <tab-number> "message"
 

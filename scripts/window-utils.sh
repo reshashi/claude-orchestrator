@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Window management utilities for Claude Orchestrator
 # Ensures all tab operations happen in the orchestrator's window
 

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Initialize project-specific memory structure
 
 PROJECT_ROOT="${1:-.}"

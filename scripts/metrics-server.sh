@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Lightweight HTTP server for Prometheus metrics endpoint
 # Usage: ./metrics-server.sh [port]
 
