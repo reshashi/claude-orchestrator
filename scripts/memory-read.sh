@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Read from memory files
 # Usage: memory-read.sh <type> [name/search]
 #   memory-read.sh toolchain [name]  - Read toolchain entry

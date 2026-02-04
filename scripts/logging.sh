@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Structured JSON logging for Claude Orchestrator
 # Usage: source this file, then call log_event or log_* functions
 

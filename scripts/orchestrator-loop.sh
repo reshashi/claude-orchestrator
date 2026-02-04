@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -e
 
 REPO_NAME="${REPO_NAME:-medicalbills}"

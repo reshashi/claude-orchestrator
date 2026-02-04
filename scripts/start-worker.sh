@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Start a Claude worker in a new iTerm tab within the orchestrator's window
 # Usage: start-worker.sh <worker-name> [repo-name]
 # Example: start-worker.sh privacy-policy medicalbills

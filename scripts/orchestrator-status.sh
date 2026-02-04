@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 PID_FILE="$HOME/.claude/orchestrator.pid"
 LOG_FILE="$HOME/.claude/orchestrator.log"
 echo "=== Orchestrator Status ==="

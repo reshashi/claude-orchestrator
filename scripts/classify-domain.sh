@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Classify worker domain based on task description and optional file patterns
 
 TASK_DESC="${1}"

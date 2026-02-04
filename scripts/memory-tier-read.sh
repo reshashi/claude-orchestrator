@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Read memory with tier precedence (seed → user → project)
 
 TIER="${1}"  # seed, user, project, or all

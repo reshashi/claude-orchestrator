@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Initialize a worker with its task prompt
 # Usage: worker-init.sh <tab-number> <worker-name>
 

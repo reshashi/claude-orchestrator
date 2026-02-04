@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Write to memory files
 # Usage: memory-write.sh <type> <args...>
 #   memory-write.sh toolchain <name> <json>  - Add/update toolchain entry

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Build worker context from all three memory tiers
 
 WORKER_NAME="${1}"

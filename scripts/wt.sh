@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Worktree management helper for Claude Code parallel sessions
 
 WORKTREE_BASE="$HOME/.worktrees"

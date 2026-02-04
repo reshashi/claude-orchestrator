@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Get status of all worker tabs
 # Usage: worker-status.sh
 
