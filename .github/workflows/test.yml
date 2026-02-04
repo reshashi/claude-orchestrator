@@ -13,6 +13,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install bash 4+ (macOS ships with 3.2)
+        run: |
+          brew install bash
+          echo "Installed bash version: $(/opt/homebrew/bin/bash --version | head -1)"
+
       - name: Install iTerm2 (mock check)
         run: |
           # Create mock iTerm2 directory for CI
@@ -59,8 +64,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install jq
-        run: brew install jq
+      - name: Install dependencies (bash 4+, jq)
+        run: brew install bash jq
 
       - name: Make scripts executable
         run: chmod +x scripts/*.sh tests/*.sh
