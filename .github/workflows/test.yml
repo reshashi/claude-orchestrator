@@ -37,18 +37,25 @@ jobs:
           test -f ~/.claude/commands/spawn.md
           test -f ~/.claude/agents/qa-guardian.md
 
-          # Verify memory system files (v2.4)
+          # Verify memory system files
           test -f ~/.claude/scripts/memory-read.sh
           test -f ~/.claude/scripts/memory-write.sh
+          test -f ~/.claude/scripts/migrate-memory.sh
           test -f ~/.claude/scripts/session-summary.sh
           test -f ~/.claude/commands/assistant.md
           test -f ~/.claude/agents/orchestrator-assistant.md
-          test -d ~/.claude/memory
-          test -d ~/.claude/memory/projects
-          test -d ~/.claude/memory/sessions
-          test -f ~/.claude/memory/toolchain.json
-          test -f ~/.claude/memory/repos.json
-          test -f ~/.claude/memory/facts.json
+
+          # Verify 3-tier memory directories (v3.4)
+          test -d ~/.claude/orchestrator/global
+          test -d ~/.claude/orchestrator/global/projects
+          test -d ~/.claude/orchestrator/global/sessions
+          test -d ~/.claude/orchestrator/seed
+          test -d ~/.claude/orchestrator/user
+          test -f ~/.claude/orchestrator/global/toolchain.json
+          test -f ~/.claude/orchestrator/global/repos.json
+          test -f ~/.claude/orchestrator/global/facts.json
+          test -f ~/.claude/orchestrator/user/user-preferences.json
+          test -f ~/.claude/orchestrator/user/user-standards.json
 
           echo "All files installed correctly"
 
