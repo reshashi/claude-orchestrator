@@ -318,17 +318,34 @@ install() {
     mkdir -p "$AGENTS_DIR"
     mkdir -p "$WORKTREES_DIR"
 
-    # Create memory directories (v2.4)
-    MEMORY_DIR="$CLAUDE_DIR/memory"
-    mkdir -p "$MEMORY_DIR/projects"
-    mkdir -p "$MEMORY_DIR/sessions"
+    # Create 3-tier memory directories (v3.3)
+    ORCHESTRATOR_DIR="$CLAUDE_DIR/orchestrator"
+    GLOBAL_MEMORY_DIR="$ORCHESTRATOR_DIR/global"
+    mkdir -p "$GLOBAL_MEMORY_DIR/projects"
+    mkdir -p "$GLOBAL_MEMORY_DIR/sessions"
+    mkdir -p "$ORCHESTRATOR_DIR/seed"
+    mkdir -p "$ORCHESTRATOR_DIR/user"
 
-    # Copy memory templates if they don't exist (v2.4)
+    # Migrate legacy memory if it exists (v2.4 → v3.3)
+    if [[ -d "$CLAUDE_DIR/memory" && ! -f "$CLAUDE_DIR/memory/.migrated" ]]; then
+        info "Migrating legacy memory to new location..."
+        "$source_dir/scripts/migrate-memory.sh"
+    fi
+
+    # Copy memory templates if they don't exist
     for template in memory-toolchain.json memory-repos.json memory-facts.json; do
-        local target_file="$MEMORY_DIR/${template#memory-}"
+        local target_file="$GLOBAL_MEMORY_DIR/${template#memory-}"
         if [[ ! -f "$target_file" && -f "$source_dir/templates/$template" ]]; then
             cp "$source_dir/templates/$template" "$target_file"
             info "  Created $target_file from template"
+        fi
+    done
+
+    # Copy user preference templates if they don't exist
+    for template in user-preferences.json user-standards.json; do
+        if [[ ! -f "$ORCHESTRATOR_DIR/user/$template" && -f "$source_dir/templates/$template" ]]; then
+            cp "$source_dir/templates/$template" "$ORCHESTRATOR_DIR/user/$template"
+            info "  Created $ORCHESTRATOR_DIR/user/$template from template"
         fi
     done
 

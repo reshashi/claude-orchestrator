@@ -7,7 +7,17 @@
 
 set -e
 
-MEMORY_DIR="${CLAUDE_MEMORY_DIR:-$HOME/.claude/orchestrator/global}"
+# Resolve memory directory: env override > new location > legacy location
+if [[ -n "${CLAUDE_MEMORY_DIR:-}" ]]; then
+    MEMORY_DIR="$CLAUDE_MEMORY_DIR"
+elif [[ -d "$HOME/.claude/orchestrator/global" ]]; then
+    MEMORY_DIR="$HOME/.claude/orchestrator/global"
+elif [[ -d "$HOME/.claude/memory" ]]; then
+    MEMORY_DIR="$HOME/.claude/memory"
+    echo "NOTE: Using legacy memory at $MEMORY_DIR. Run 'migrate-memory.sh' to upgrade." >&2
+else
+    MEMORY_DIR="$HOME/.claude/orchestrator/global"
+fi
 TOOLCHAIN_FILE="$MEMORY_DIR/toolchain.json"
 REPOS_FILE="$MEMORY_DIR/repos.json"
 FACTS_FILE="$MEMORY_DIR/facts.json"
@@ -173,7 +183,7 @@ show_help() {
     echo "  memory-write.sh fact 'Prefer TypeScript over JavaScript' preference"
     echo ""
     echo "Environment:"
-    echo "  CLAUDE_MEMORY_DIR - Override memory directory (default: ~/.claude/memory)"
+    echo "  CLAUDE_MEMORY_DIR - Override memory directory (default: ~/.claude/orchestrator/global)"
 }
 
 case "$1" in
