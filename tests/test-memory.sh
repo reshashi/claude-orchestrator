@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Tests for memory system scripts
 # Run with: ./tests/test-memory.sh
 

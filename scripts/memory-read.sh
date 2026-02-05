@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Read from memory files
 # Usage: memory-read.sh <type> [name/search]
 #   memory-read.sh toolchain [name]  - Read toolchain entry
@@ -8,7 +8,7 @@
 
 set -e
 
-MEMORY_DIR="${CLAUDE_MEMORY_DIR:-$HOME/.claude/memory}"
+MEMORY_DIR="${CLAUDE_MEMORY_DIR:-$HOME/.claude/orchestrator/global}"
 TOOLCHAIN_FILE="$MEMORY_DIR/toolchain.json"
 REPOS_FILE="$MEMORY_DIR/repos.json"
 FACTS_FILE="$MEMORY_DIR/facts.json"

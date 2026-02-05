@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 PID_FILE="$HOME/.claude/orchestrator.pid"
 if [ -f "$PID_FILE" ]; then
     PID=$(cat "$PID_FILE")

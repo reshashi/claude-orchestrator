@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Start the observability dashboard
 # Usage: ./start-dashboard.sh [port]
 
