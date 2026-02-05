@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Claude Code Orchestrator - Installation Script
 #
 # Usage:
@@ -10,8 +10,24 @@
 #   -v, --version   Install specific version (default: latest)
 #   --uninstall     Remove installation
 #   --update        Update to latest version
+#
+# Requirements:
+#   - Bash 4.0+ (macOS users: brew install bash)
 
 set -eo pipefail
+
+# Check bash version first (need 4.0+ for associative arrays)
+if [[ "${BASH_VERSINFO[0]}" -lt 4 ]]; then
+    echo "ERROR: Bash 4.0+ is required. You have Bash ${BASH_VERSION}."
+    echo ""
+    echo "macOS ships with Bash 3.2 due to GPL licensing."
+    echo "Install modern Bash via Homebrew:"
+    echo ""
+    echo "  brew install bash"
+    echo ""
+    echo "Then run this installer again - it will automatically use the new Bash."
+    exit 1
+fi
 
 # Configuration
 VERSION="${VERSION:-local}"
@@ -142,6 +158,9 @@ check_prerequisites() {
     local has_errors=false
 
     info "Checking prerequisites..."
+
+    # Bash version check (already verified at script start, but show success message)
+    success "Bash ${BASH_VERSION} (4.0+ required: OK)"
 
     # macOS check (required)
     if [[ "$(uname)" != "Darwin" ]]; then

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Cost tracking utilities for Claude Orchestrator
 # Tracks Claude API token usage and estimates costs
 

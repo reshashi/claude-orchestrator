@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Read output from a worker tab
 # Usage: worker-read.sh <tab-number>
 

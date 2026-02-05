@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Generate session summaries for handoff
 # Usage: session-summary.sh [session-name] [repo-path]
 

@@ -1,0 +1,16 @@
+{
+  "$schema": "user-preferences-schema",
+  "$description": "Your cross-project coding preferences and standards",
+  "coding_style": {
+    "indentation": "spaces",
+    "indent_size": 2,
+    "quotes": "single",
+    "semicolons": true
+  },
+  "preferences": [
+    "Always use TypeScript strict mode",
+    "Prefer functional components over classes",
+    "Write tests before implementation"
+  ],
+  "notes": "Customize these preferences to match your coding style"
+}
