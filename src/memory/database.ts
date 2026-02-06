@@ -11,7 +11,7 @@ import * as fs from 'node:fs';
 import type { Logger } from '../types.js';
 
 /** Current schema version for migrations */
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 /**
  * Database initialization options
@@ -114,6 +114,9 @@ export class MemoryDatabase {
     if (currentVersion < 1) {
       this.migrateV1();
     }
+    if (currentVersion < 2) {
+      this.migrateV2();
+    }
   }
 
   /**
@@ -193,14 +196,78 @@ export class MemoryDatabase {
   }
 
   /**
+   * Migration V2: Tasks Backlog table
+   */
+  private migrateV2(): void {
+    const db = this.getDb();
+
+    this.logger?.info?.('Applying migration v2');
+
+    db.exec(`
+      -- Tasks Backlog table for tracking suggestions and future work
+      CREATE TABLE IF NOT EXISTS tasks_backlog (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        source TEXT NOT NULL DEFAULT 'manual',
+        priority TEXT NOT NULL DEFAULT 'suggestion',
+        title TEXT NOT NULL,
+        description TEXT,
+        file_path TEXT,
+        line_number INTEGER,
+        status TEXT NOT NULL DEFAULT 'pending',
+        created_at TEXT NOT NULL,
+        completed_at TEXT,
+        metadata TEXT
+      );
+
+      -- Indexes for common queries
+      CREATE INDEX IF NOT EXISTS idx_backlog_source ON tasks_backlog(source);
+      CREATE INDEX IF NOT EXISTS idx_backlog_priority ON tasks_backlog(priority);
+      CREATE INDEX IF NOT EXISTS idx_backlog_status ON tasks_backlog(status);
+      CREATE INDEX IF NOT EXISTS idx_backlog_created_at ON tasks_backlog(created_at);
+
+      -- Full-text search for backlog tasks
+      CREATE VIRTUAL TABLE IF NOT EXISTS backlog_fts USING fts5(
+        title,
+        description,
+        content=tasks_backlog,
+        content_rowid=id
+      );
+
+      -- Triggers to keep FTS index in sync
+      CREATE TRIGGER IF NOT EXISTS backlog_ai AFTER INSERT ON tasks_backlog BEGIN
+        INSERT INTO backlog_fts(rowid, title, description)
+        VALUES (new.id, new.title, COALESCE(new.description, ''));
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS backlog_ad AFTER DELETE ON tasks_backlog BEGIN
+        INSERT INTO backlog_fts(backlog_fts, rowid, title, description)
+        VALUES('delete', old.id, old.title, COALESCE(old.description, ''));
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS backlog_au AFTER UPDATE ON tasks_backlog BEGIN
+        INSERT INTO backlog_fts(backlog_fts, rowid, title, description)
+        VALUES('delete', old.id, old.title, COALESCE(old.description, ''));
+        INSERT INTO backlog_fts(rowid, title, description)
+        VALUES (new.id, new.title, COALESCE(new.description, ''));
+      END;
+
+      -- Record migration
+      INSERT INTO schema_migrations (version, applied_at) VALUES (2, datetime('now'));
+    `);
+
+    this.logger?.info?.('Migration v2 applied successfully');
+  }
+
+  /**
    * Get database stats
    */
-  getStats(): { sessions: number; observations: number; summaries: number; sizeBytes: number } {
+  getStats(): { sessions: number; observations: number; summaries: number; backlogTasks: number; sizeBytes: number } {
     const db = this.getDb();
 
     const sessions = (db.prepare('SELECT COUNT(*) as count FROM sessions').get() as { count: number }).count;
     const observations = (db.prepare('SELECT COUNT(*) as count FROM observations').get() as { count: number }).count;
     const summaries = (db.prepare('SELECT COUNT(*) as count FROM summaries').get() as { count: number }).count;
+    const backlogTasks = (db.prepare('SELECT COUNT(*) as count FROM tasks_backlog WHERE status != ?').get('deleted') as { count: number }).count;
 
     let sizeBytes = 0;
     try {
@@ -210,7 +277,7 @@ export class MemoryDatabase {
       // Ignore
     }
 
-    return { sessions, observations, summaries, sizeBytes };
+    return { sessions, observations, summaries, backlogTasks, sizeBytes };
   }
 
   /**

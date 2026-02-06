@@ -9,6 +9,7 @@ import * as path from 'node:path';
 import { MemoryDatabase } from './database.js';
 import { SessionStore } from './session-store.js';
 import { ObservationStore } from './observation-store.js';
+import { BacklogStore } from './backlog-store.js';
 import { searchObservations, getSearchSummary } from './search.js';
 import type {
   MemoryConfig,
@@ -20,6 +21,10 @@ import type {
   SearchOptions,
   SearchResult,
   ObservationType,
+  BacklogTask,
+  NewBacklogTask,
+  BacklogFilter,
+  BacklogPriority,
 } from './types.js';
 import type { Logger } from '../types.js';
 
@@ -39,6 +44,7 @@ export class MemoryService {
   private readonly database: MemoryDatabase;
   private readonly sessions: SessionStore;
   private readonly observations: ObservationStore;
+  private readonly backlog: BacklogStore;
   private readonly logger?: Logger;
 
   private currentSessionId: string | null = null;
@@ -55,6 +61,7 @@ export class MemoryService {
 
     this.sessions = new SessionStore(this.database);
     this.observations = new ObservationStore(this.database);
+    this.backlog = new BacklogStore(this.database);
     this.logger = options.logger;
   }
 
@@ -332,6 +339,7 @@ export class MemoryService {
     sessions: number;
     observations: number;
     summaries: number;
+    backlogTasks: number;
     sizeBytes: number;
     currentSessionId: string | null;
   } {
@@ -380,6 +388,135 @@ export class MemoryService {
   vacuum(): void {
     this.ensureInitialized();
     this.database.vacuum();
+  }
+
+  // ============================================
+  // Backlog Methods
+  // ============================================
+
+  /**
+   * Add a task to the backlog
+   */
+  addBacklogTask(input: NewBacklogTask): BacklogTask {
+    this.ensureInitialized();
+    const task = this.backlog.add(input);
+    this.logger?.info?.('Added backlog task', { id: task.id, title: task.title, priority: task.priority });
+    return task;
+  }
+
+  /**
+   * Add a suggestion from a review (convenience method)
+   */
+  addReviewSuggestion(title: string, description?: string, filePath?: string, lineNumber?: number): BacklogTask {
+    return this.addBacklogTask({
+      source: 'review',
+      priority: 'suggestion',
+      title,
+      description,
+      filePath,
+      lineNumber,
+    });
+  }
+
+  /**
+   * Add an important issue from a review
+   */
+  addReviewIssue(title: string, description?: string, filePath?: string, lineNumber?: number): BacklogTask {
+    return this.addBacklogTask({
+      source: 'review',
+      priority: 'important',
+      title,
+      description,
+      filePath,
+      lineNumber,
+    });
+  }
+
+  /**
+   * Add a task from a project
+   */
+  addProjectTask(title: string, priority: BacklogPriority, description?: string, metadata?: Record<string, unknown>): BacklogTask {
+    return this.addBacklogTask({
+      source: 'project',
+      priority,
+      title,
+      description,
+      metadata,
+    });
+  }
+
+  /**
+   * List backlog tasks with optional filtering
+   */
+  listBacklogTasks(filter: BacklogFilter = {}): BacklogTask[] {
+    this.ensureInitialized();
+    return this.backlog.list(filter);
+  }
+
+  /**
+   * Get pending backlog tasks
+   */
+  getPendingBacklogTasks(limit?: number): BacklogTask[] {
+    this.ensureInitialized();
+    return this.backlog.getPending(limit);
+  }
+
+  /**
+   * Get a backlog task by ID
+   */
+  getBacklogTask(id: number): BacklogTask | null {
+    this.ensureInitialized();
+    return this.backlog.getById(id);
+  }
+
+  /**
+   * Mark a backlog task as completed
+   */
+  completeBacklogTask(id: number): BacklogTask | null {
+    this.ensureInitialized();
+    const task = this.backlog.complete(id);
+    if (task) {
+      this.logger?.info?.('Completed backlog task', { id: task.id, title: task.title });
+    }
+    return task;
+  }
+
+  /**
+   * Delete a backlog task (soft delete)
+   */
+  deleteBacklogTask(id: number): boolean {
+    this.ensureInitialized();
+    const success = this.backlog.delete(id);
+    if (success) {
+      this.logger?.info?.('Deleted backlog task', { id });
+    }
+    return success;
+  }
+
+  /**
+   * Search backlog tasks
+   */
+  searchBacklog(query: string, limit?: number): BacklogTask[] {
+    this.ensureInitialized();
+    return this.backlog.search(query, limit);
+  }
+
+  /**
+   * Get backlog statistics
+   */
+  getBacklogStats(): ReturnType<BacklogStore['getStats']> {
+    this.ensureInitialized();
+    return this.backlog.getStats();
+  }
+
+  /**
+   * Clean up old completed backlog tasks
+   */
+  cleanupBacklog(olderThanDays: number = 90): number {
+    this.ensureInitialized();
+    const count = this.backlog.cleanup(olderThanDays);
+    this.logger?.info?.('Cleaned up old backlog tasks', { count, olderThanDays });
+    return count;
   }
 
   // ============================================

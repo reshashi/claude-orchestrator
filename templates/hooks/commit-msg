@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# Commit message hook: Enforce conventional commits format
+# Installed by claude-orchestrator
+#
+# Format: <type>(<scope>): <description>
+# Types: feat, fix, docs, style, refactor, test, chore, perf, ci, build, revert
+
+COMMIT_MSG_FILE=$1
+COMMIT_MSG=$(cat "$COMMIT_MSG_FILE")
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+# Skip merge commits
+if echo "$COMMIT_MSG" | grep -qE "^Merge "; then
+    exit 0
+fi
+
+# Skip revert commits
+if echo "$COMMIT_MSG" | grep -qE "^Revert "; then
+    exit 0
+fi
+
+# Conventional commit pattern
+PATTERN="^(feat|fix|docs|style|refactor|test|chore|perf|ci|build|revert)(\([a-zA-Z0-9_-]+\))?: .{1,72}$"
+
+# Check the first line
+FIRST_LINE=$(echo "$COMMIT_MSG" | head -n1)
+
+if ! echo "$FIRST_LINE" | grep -qE "$PATTERN"; then
+    echo -e "${RED}✗ Invalid commit message format${NC}"
+    echo ""
+    echo "Your commit message:"
+    echo "  $FIRST_LINE"
+    echo ""
+    echo "Expected format:"
+    echo "  <type>(<scope>): <description>"
+    echo ""
+    echo "Valid types:"
+    echo "  feat     - A new feature"
+    echo "  fix      - A bug fix"
+    echo "  docs     - Documentation changes"
+    echo "  style    - Code style changes (formatting, etc)"
+    echo "  refactor - Code refactoring"
+    echo "  test     - Adding or updating tests"
+    echo "  chore    - Maintenance tasks"
+    echo "  perf     - Performance improvements"
+    echo "  ci       - CI/CD changes"
+    echo "  build    - Build system changes"
+    echo "  revert   - Reverting a previous commit"
+    echo ""
+    echo "Examples:"
+    echo "  feat(auth): add OAuth2 login support"
+    echo "  fix: resolve null pointer in user service"
+    echo "  docs(readme): update installation instructions"
+    echo ""
+    exit 1
+fi
+
+# Check description length (first line should be <= 72 chars)
+if [ ${#FIRST_LINE} -gt 72 ]; then
+    echo -e "${YELLOW}⚠ Commit message first line is too long (${#FIRST_LINE} > 72 chars)${NC}"
+    echo "  Consider shortening: $FIRST_LINE"
+    # Warning only, don't block
+fi
+
+echo -e "${GREEN}✓ Commit message format valid${NC}"

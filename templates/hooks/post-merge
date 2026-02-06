@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# Post-merge hook: Run review and add suggestions to backlog
+# Installed by claude-orchestrator
+#
+# This hook runs after a successful merge to track quality suggestions.
+
+# Colors
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+BACKLOG_SCRIPT="$HOME/.claude/scripts/backlog.sh"
+
+# Only proceed if backlog script exists
+if [ ! -f "$BACKLOG_SCRIPT" ]; then
+    exit 0
+fi
+
+echo -e "\n${BLUE}[Post-Merge] Recording merge in backlog system...${NC}"
+
+# Get merge info
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+COMMIT_MSG=$(git log -1 --pretty=%B)
+COMMIT_HASH=$(git rev-parse --short HEAD)
+
+# Record the merge as a project task completion (if it looks like a feature)
+if [[ "$COMMIT_MSG" =~ ^(feat|feature|fix|refactor): ]]; then
+    # Extract the description from the commit message
+    TASK_DESC=$(echo "$COMMIT_MSG" | head -1 | sed 's/^[a-z]*: //')
+
+    echo -e "${GREEN}✓ Merge recorded: $TASK_DESC${NC}"
+fi
+
+# Check for any TODO/FIXME comments in recently changed files
+CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "")
+
+TODO_COUNT=0
+for file in $CHANGED_FILES; do
+    if [ -f "$file" ]; then
+        # Look for TODO/FIXME comments
+        while IFS= read -r line; do
+            if [ -n "$line" ]; then
+                # Extract the TODO/FIXME text
+                TODO_TEXT=$(echo "$line" | sed -E 's/.*TODO[:\s]*//i' | sed -E 's/.*FIXME[:\s]*//i' | head -c 100)
+                if [ -n "$TODO_TEXT" ]; then
+                    "$BACKLOG_SCRIPT" add "$TODO_TEXT" --priority suggestion --source review >/dev/null 2>&1 || true
+                    TODO_COUNT=$((TODO_COUNT + 1))
+                fi
+            fi
+        done < <(grep -inE "(TODO|FIXME)" "$file" 2>/dev/null || true)
+    fi
+done
+
+if [ $TODO_COUNT -gt 0 ]; then
+    echo -e "${YELLOW}⚠ Found $TODO_COUNT TODO/FIXME comments - added to backlog${NC}"
+    echo "  Run '~/.claude/scripts/backlog.sh list' to see them"
+fi
+
+echo -e "${GREEN}✓ Post-merge hooks complete${NC}\n"

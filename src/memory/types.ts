@@ -150,3 +150,81 @@ export interface SummaryRow {
 export interface FtsSearchRow extends ObservationRow {
   rank: number;
 }
+
+// ============================================
+// Tasks Backlog Types
+// ============================================
+
+/**
+ * Priority levels for backlog tasks
+ */
+export type BacklogPriority = 'critical' | 'important' | 'suggestion';
+
+/**
+ * Status of a backlog task
+ */
+export type BacklogStatus = 'pending' | 'in_progress' | 'completed' | 'deleted';
+
+/**
+ * Source of a backlog task
+ */
+export type BacklogSource = 'project' | 'review' | 'manual';
+
+/**
+ * A task in the backlog
+ */
+export interface BacklogTask {
+  id: number;
+  source: BacklogSource;
+  priority: BacklogPriority;
+  title: string;
+  description: string | null;
+  filePath: string | null;
+  lineNumber: number | null;
+  status: BacklogStatus;
+  createdAt: string;
+  completedAt: string | null;
+  metadata: Record<string, unknown> | null;
+}
+
+/**
+ * Input for creating a new backlog task
+ */
+export interface NewBacklogTask {
+  source: BacklogSource;
+  priority: BacklogPriority;
+  title: string;
+  description?: string;
+  filePath?: string;
+  lineNumber?: number;
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * Filter options for querying backlog tasks
+ */
+export interface BacklogFilter {
+  source?: BacklogSource;
+  priority?: BacklogPriority;
+  status?: BacklogStatus;
+  since?: string;
+  limit?: number;
+  offset?: number;
+}
+
+/**
+ * Database row type for backlog tasks (internal)
+ */
+export interface BacklogTaskRow {
+  id: number;
+  source: string;
+  priority: string;
+  title: string;
+  description: string | null;
+  file_path: string | null;
+  line_number: number | null;
+  status: string;
+  created_at: string;
+  completed_at: string | null;
+  metadata: string | null;
+}

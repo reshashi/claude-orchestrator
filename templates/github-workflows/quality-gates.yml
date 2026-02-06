@@ -1,0 +1,233 @@
+# Quality Gates - Automated code review and quality checks
+# Copy to: .github/workflows/quality-gates.yml
+#
+# This workflow enforces quality rules heuristically on every PR and push.
+# No AI agent required - these are deterministic checks.
+
+name: Quality Gates
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  # ============================================================
+  # Job 1: Build & Type Check
+  # ============================================================
+  build:
+    name: Build & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build / Type Check
+        run: |
+          if npm run | grep -q "type-check"; then
+            npm run type-check
+          elif npm run | grep -q "build"; then
+            npm run build
+          fi
+
+  # ============================================================
+  # Job 2: Lint
+  # ============================================================
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Lint
+        run: |
+          if npm run | grep -q "lint"; then
+            npm run lint
+          else
+            echo "No lint script found, skipping"
+          fi
+
+  # ============================================================
+  # Job 3: Tests
+  # ============================================================
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Tests
+        run: |
+          if npm run | grep -q "test:run"; then
+            npm run test:run
+          elif npm run | grep -q "test"; then
+            npm test -- --passWithNoTests || npm test
+          fi
+
+  # ============================================================
+  # Job 4: Security Audit
+  # ============================================================
+  security:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Security Audit
+        run: npm audit --audit-level=high
+        continue-on-error: true  # Don't fail on pre-existing vulnerabilities
+
+  # ============================================================
+  # Job 5: Automated Review (Static Analysis)
+  # ============================================================
+  auto-review:
+    name: Automated Review
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for diff
+
+      - name: Check for hardcoded secrets
+        run: |
+          SECRET_PATTERN='(password|secret|api_key|apikey|api_secret|token|credential|private_key)\s*[=:]\s*["'"'"'][^"'"'"']{8,}["'"'"']'
+          EXCLUDE='example|sample|test|mock|fake|dummy|placeholder|TODO|CHANGEME'
+
+          echo "Scanning for potential secrets..."
+          FOUND=0
+
+          for file in $(git ls-files '*.ts' '*.js' '*.tsx' '*.jsx' '*.py' '*.json' '*.yaml' '*.yml'); do
+            if [ -f "$file" ]; then
+              if grep -inE "$SECRET_PATTERN" "$file" 2>/dev/null | grep -ivE "$EXCLUDE" > /dev/null; then
+                echo "::error file=$file::Potential hardcoded secret found"
+                FOUND=1
+              fi
+            fi
+          done
+
+          if [ $FOUND -eq 1 ]; then
+            echo "::error::Hardcoded secrets detected. Review and remove before merging."
+            exit 1
+          fi
+
+          echo "No hardcoded secrets found"
+
+      - name: Check for dangerous functions
+        run: |
+          echo "Scanning for dangerous functions..."
+          FOUND=0
+
+          for file in $(git ls-files '*.ts' '*.js' '*.tsx' '*.jsx'); do
+            if [ -f "$file" ]; then
+              if grep -qE '\beval\s*\(' "$file" 2>/dev/null; then
+                echo "::error file=$file::Use of eval() detected - potential code injection risk"
+                FOUND=1
+              fi
+            fi
+          done
+
+          if [ $FOUND -eq 1 ]; then
+            exit 1
+          fi
+
+          echo "No dangerous functions found"
+
+      - name: Check for any types (TypeScript)
+        run: |
+          echo "Scanning for 'any' type usage..."
+          ANY_COUNT=0
+
+          for file in $(git ls-files '*.ts' '*.tsx'); do
+            if [ -f "$file" ]; then
+              count=$(grep -cE ': any\b|<any>|as any' "$file" 2>/dev/null || echo "0")
+              if [ "$count" -gt 0 ]; then
+                echo "::warning file=$file::$count 'any' type usage(s) found"
+                ANY_COUNT=$((ANY_COUNT + count))
+              fi
+            fi
+          done
+
+          if [ $ANY_COUNT -gt 10 ]; then
+            echo "::error::Too many 'any' types ($ANY_COUNT). Reduce to improve type safety."
+            exit 1
+          fi
+
+          echo "Any type check complete ($ANY_COUNT found)"
+
+  # ============================================================
+  # Job 6: Conventional Commits Check
+  # ============================================================
+  commit-lint:
+    name: Commit Lint
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check commit messages
+        run: |
+          PATTERN='^(feat|fix|docs|style|refactor|test|chore|perf|ci|build|revert)(\([a-zA-Z0-9_-]+\))?: .{1,72}$'
+
+          echo "Checking commit messages..."
+          FAILED=0
+
+          for commit in $(git log --format=%H origin/${{ github.base_ref }}..HEAD 2>/dev/null || git log --format=%H -10); do
+            MSG=$(git log -1 --format=%s "$commit")
+
+            # Skip merge commits
+            if echo "$MSG" | grep -qE "^Merge "; then
+              continue
+            fi
+
+            if ! echo "$MSG" | grep -qE "$PATTERN"; then
+              echo "::error::Invalid commit message: $MSG"
+              echo "Expected format: <type>(<scope>): <description>"
+              FAILED=1
+            fi
+          done
+
+          if [ $FAILED -eq 1 ]; then
+            echo ""
+            echo "Valid types: feat, fix, docs, style, refactor, test, chore, perf, ci, build, revert"
+            exit 1
+          fi
+
+          echo "All commit messages follow conventional format"

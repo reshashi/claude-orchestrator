@@ -265,6 +265,85 @@ uninstall() {
     echo "To fully remove, run: rm -rf ~/.claude/commands ~/.claude/agents"
 }
 
+# Migrate TASKS_BACKLOG.md to database
+migrate_tasks_backlog() {
+    local source_dir="$1"
+    local backlog_script="$source_dir/scripts/backlog.sh"
+    local marker_file="$CLAUDE_DIR/orchestrator/.backlog-migrated"
+
+    # Skip if already migrated
+    if [[ -f "$marker_file" ]]; then
+        return 0
+    fi
+
+    # Check for TASKS_BACKLOG.md in common locations
+    local backlog_files=()
+
+    # Project root (if in a project)
+    if [[ -f "$(pwd)/TASKS_BACKLOG.md" ]]; then
+        backlog_files+=("$(pwd)/TASKS_BACKLOG.md")
+    fi
+
+    # Claude directory
+    if [[ -f "$CLAUDE_DIR/TASKS_BACKLOG.md" ]]; then
+        backlog_files+=("$CLAUDE_DIR/TASKS_BACKLOG.md")
+    fi
+
+    # Global orchestrator directory (old location)
+    if [[ -f "$CLAUDE_DIR/orchestrator/TASKS_BACKLOG.md" ]]; then
+        backlog_files+=("$CLAUDE_DIR/orchestrator/TASKS_BACKLOG.md")
+    fi
+
+    if [[ ${#backlog_files[@]} -eq 0 ]]; then
+        # No backlog files to migrate
+        touch "$marker_file"
+        return 0
+    fi
+
+    info "Migrating TASKS_BACKLOG.md files to database..."
+
+    for backlog_file in "${backlog_files[@]}"; do
+        if [[ -f "$backlog_file" ]]; then
+            info "  Processing: $backlog_file"
+
+            # Parse and import tasks (simple format: "- [Priority] Description")
+            local count=0
+            while IFS= read -r line; do
+                # Match lines like "- **[Important]** Description" or "- [Suggestion] Description"
+                if [[ "$line" =~ ^[[:space:]]*[-*]+[[:space:]]*\*?\*?\[([Cc]ritical|[Ii]mportant|[Ss]uggestion)\]\*?\*?[[:space:]]*(.+)$ ]]; then
+                    local priority="${BASH_REMATCH[1],,}"  # lowercase
+                    local title="${BASH_REMATCH[2]}"
+
+                    # Clean up title (remove trailing punctuation, markdown bold)
+                    title=$(echo "$title" | sed 's/^\*\*//;s/\*\*$//;s/[[:space:]]*—.*$//')
+
+                    if [[ -n "$title" ]]; then
+                        # Add to database using backlog.sh
+                        "$backlog_script" add "$title" --priority "$priority" --source "project" >/dev/null 2>&1 || true
+                        ((count++))
+                    fi
+                fi
+            done < "$backlog_file"
+
+            if [[ $count -gt 0 ]]; then
+                success "  Imported $count tasks from $backlog_file"
+
+                # Backup original file
+                cp "$backlog_file" "${backlog_file}.pre-migration"
+
+                # Replace with deprecation notice
+                if [[ -f "$source_dir/templates/TASKS_BACKLOG_DEPRECATED.md" ]]; then
+                    cp "$source_dir/templates/TASKS_BACKLOG_DEPRECATED.md" "$backlog_file"
+                fi
+            fi
+        fi
+    done
+
+    # Mark migration complete
+    touch "$marker_file"
+    success "Backlog migration complete"
+}
+
 # Install function
 install() {
     local source_dir
@@ -332,6 +411,9 @@ install() {
         "$source_dir/scripts/migrate-memory.sh"
     fi
 
+    # Migrate TASKS_BACKLOG.md files to database (v3.5)
+    migrate_tasks_backlog "$source_dir"
+
     # Copy memory templates if they don't exist
     for template in memory-toolchain.json memory-repos.json memory-facts.json; do
         local target_file="$GLOBAL_MEMORY_DIR/${template#memory-}"
@@ -371,6 +453,16 @@ install() {
     done
     chmod +x "$SCRIPTS_DIR"/*.sh 2>/dev/null || true
     success "Scripts installed to $SCRIPTS_DIR"
+
+    # Copy hook templates
+    info "Installing git hook templates..."
+    mkdir -p "$INSTALL_DIR/templates/hooks"
+    if [ -d "$source_dir/templates/hooks" ]; then
+        cp -r "$source_dir/templates/hooks/"* "$INSTALL_DIR/templates/hooks/" 2>/dev/null || true
+        chmod +x "$INSTALL_DIR/templates/hooks/"* 2>/dev/null || true
+        success "Git hook templates installed"
+        echo "    To enable hooks in a project: ~/.claude/scripts/install-hooks.sh"
+    fi
 
     # Install commands (copy, preserve user customizations)
     info "Installing commands..."

@@ -18,6 +18,13 @@ export type {
   SearchOptions,
   SearchResult,
   MemoryConfig,
+  // Backlog types
+  BacklogPriority,
+  BacklogStatus,
+  BacklogSource,
+  BacklogTask,
+  NewBacklogTask,
+  BacklogFilter,
 } from './types.js';
 
 // Export database
@@ -27,6 +34,7 @@ export type { DatabaseOptions } from './database.js';
 // Export stores
 export { SessionStore } from './session-store.js';
 export { ObservationStore } from './observation-store.js';
+export { BacklogStore } from './backlog-store.js';
 
 // Export search
 export { searchObservations } from './search.js';
