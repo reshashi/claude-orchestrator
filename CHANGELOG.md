@@ -1,3 +1,48 @@
+## [3.4.0] - 2026-02-05
+
+### Added
+
+- **Bash 4+ as Explicit Dependency**
+  - All scripts now use portable shebang (`#!/usr/bin/env bash`)
+  - `install.sh` fails early with clear instructions if Bash < 4.0
+  - README documents the prerequisite with Homebrew installation command
+  - CI workflow installs Bash 4+ via Homebrew on macOS runners
+
+- **3-Tier Memory Architecture**
+  - **Seed tier** (`~/.claude/orchestrator/seed/`) - Built-in orchestrator training (read-only)
+  - **User tier** (`~/.claude/orchestrator/user/`) - Global preferences and standards
+  - **Global tier** (`~/.claude/orchestrator/global/`) - Toolchain, repos, facts
+  - **Project tier** (`{project}/.claude/memory/`) - Project-specific learnings
+
+- **New Memory Scripts**
+  - `build-worker-context.sh` - Assembles worker context from all three tiers
+  - `classify-domain.sh` - Classifies worker domain from task description
+  - `init-project-memory.sh` - Initializes per-project memory structure
+  - `memory-tier-read.sh` - Reads from specific tier or all tiers with precedence
+  - `migrate-memory.sh` - Migrates legacy `~/.claude/memory/` to new location
+
+- **New Templates**
+  - `templates/user-preferences.json` - Coding style preferences
+  - `templates/user-standards.json` - Development standards
+
+### Changed
+
+- **Memory location migrated**: `~/.claude/memory/` → `~/.claude/orchestrator/global/`
+- `install.sh` now creates full 3-tier directory structure and runs migration automatically
+- `memory-read.sh` / `memory-write.sh` fall back to legacy path with deprecation notice
+
+### Fixed
+
+- **Silent orchestrator exits** - Removed `set -e` from `orchestrator-loop.sh`. osascript returns non-zero on many successful operations, causing silent quits. (#10)
+- **Spawn argument parsing docs** - Documentation now correctly shows `$ARGUMENTS` as the way to access task descriptions. (#11)
+- **CI test assertions** - Updated test workflow to validate new 3-tier memory paths instead of legacy `~/.claude/memory`.
+
+### Contributors
+
+- @johnbongaarts - Bash 4+ requirement, 3-tier memory scripts, set-e fix, spawn docs (#9, #10, #11)
+
+---
+
 ## [2.4] - 2026-01-14
 
 ### Added
