@@ -14,7 +14,8 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 # Options
-FIX_MODE=false
+# shellcheck disable=SC2034
+FIX_MODE=false  # reserved for future auto-fix capability
 ADD_TO_BACKLOG=false
 BACKLOG_SCRIPT="$HOME/.claude/scripts/backlog.sh"
 

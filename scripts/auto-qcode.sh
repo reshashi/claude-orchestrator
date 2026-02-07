@@ -7,7 +7,8 @@
 set -e
 
 # Colors
-RED='\033[0;31m'
+# shellcheck disable=SC2034
+RED='\033[0;31m'  # unused but kept for consistency
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
@@ -33,7 +34,7 @@ FIXES_APPLIED=0
 FIXES_AVAILABLE=0
 
 report_fix() {
-    local type="$1"
+    local _type="$1"  # unused but kept for future categorization
     local message="$2"
     local fixed="$3"
 
