@@ -4,6 +4,7 @@
 #
 # Usage: auto-review.sh [--fix] [--add-to-backlog]
 
+# shellcheck disable=SC2034  # FIX_MODE reserved for future auto-fix capability
 set -e
 
 # Colors
@@ -14,8 +15,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 # Options
-# shellcheck disable=SC2034
-FIX_MODE=false  # reserved for future auto-fix capability
+FIX_MODE=false
 ADD_TO_BACKLOG=false
 BACKLOG_SCRIPT="$HOME/.claude/scripts/backlog.sh"
 
