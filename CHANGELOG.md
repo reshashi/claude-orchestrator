@@ -1,3 +1,72 @@
+## [3.5.0] - 2026-02-06
+
+### Added
+
+- **SQLite Tasks Backlog Database**
+  - New `tasks_backlog` table with V2 schema migration
+  - Full CRUD operations via `BacklogStore` class
+  - FTS5 full-text search for task queries
+  - Priority levels: critical, important, suggestion
+  - Source tracking: project, review, manual
+
+- **Automated Quality Enforcement via Git Hooks**
+  - `pre-commit`: Type check, lint, test, secret detection
+  - `pre-push`: Full build, all quality gates, security audit
+  - `post-merge`: Auto-add TODO/FIXME comments to backlog
+  - `commit-msg`: Conventional commit format enforcement
+  - `install-hooks.sh`: Easy installation in any repository
+
+- **Heuristic Quality Scripts** (replaces AI-dependent review)
+  - `auto-review.sh`: Static code analysis
+    - Hardcoded secret detection
+    - Dangerous function checks (eval, dangerouslySetInnerHTML)
+    - Console.log statement counting
+    - TODO/FIXME tracking
+    - TypeScript `any` type detection
+    - Large file warnings (500+ lines)
+  - `auto-qcode.sh`: Automated code fixes
+    - Trailing whitespace removal
+    - Final newline enforcement
+    - Prettier formatting
+    - ESLint auto-fix
+
+- **New Slash Commands**
+  - `/backlog`: Manage tasks backlog (list, add, complete, delete, search, stats)
+  - `/hooks`: Install and manage git hooks (install, uninstall, review, qcode, status)
+
+- **GitHub Actions Workflow Template**
+  - `templates/github-workflows/quality-gates.yml`
+  - Server-side enforcement that cannot be bypassed
+  - Jobs: build, lint, test, security, auto-review, commit-lint
+
+- **Bash CLI for Backlog**
+  - `scripts/backlog.sh`: Shell interface for backlog operations
+  - Subcommands: add, list, get, complete, delete, search, stats
+
+### Changed
+
+- **Formalized Quality Rules** in `commands/project.md`
+  - Quality gates now mandatory for all tasks
+  - Critical issues block merge
+  - Suggestions auto-added to backlog
+
+- **Updated Worker Instructions** in `commands/spawn.md`
+  - Quality requirements section added
+  - Workers must run `/review` and `/qcode` before PR
+
+- **TASKS_BACKLOG.md → SQLite Migration**
+  - `install.sh` auto-migrates existing markdown backlogs
+  - Creates `.backlog-migrated` marker for idempotency
+  - Leaves deprecation notice in original file
+
+### Technical Details
+
+- MemoryService facade extended with backlog methods
+- BacklogStore uses better-sqlite3 for synchronous operations
+- Migration preserves all existing tasks with metadata
+
+---
+
 ## [3.4.0] - 2026-02-05
 
 ### Added

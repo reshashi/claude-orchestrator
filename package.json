@@ -1,6 +1,6 @@
 {
   "name": "claude-orchestrator",
-  "version": "3.2.0",
+  "version": "3.5.0",
   "description": "Cross-platform Claude Code worker orchestration with background processes, HTTP API, and persistent memory",
   "type": "module",
   "main": "dist/index.js",
