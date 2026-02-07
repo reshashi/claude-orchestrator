@@ -59,6 +59,40 @@
   - Creates `.backlog-migrated` marker for idempotency
   - Leaves deprecation notice in original file
 
+### Migration Guide
+
+**Upgrading from v3.4 or earlier:**
+
+Run `./install.sh --update` to migrate your tasks backlog. The installer automatically:
+
+1. Searches for `TASKS_BACKLOG.md` in:
+   - Current directory (when you run install.sh)
+   - `~/.claude/TASKS_BACKLOG.md`
+   - `~/.claude/orchestrator/TASKS_BACKLOG.md`
+
+2. Imports tasks matching these formats:
+   ```markdown
+   - **[Critical]** Fix authentication bug
+   - [Important] Refactor database layer
+   - [Suggestion] Add more tests
+   ```
+
+3. Backs up originals to `TASKS_BACKLOG.md.pre-migration`
+
+4. Creates marker file to prevent re-migration
+
+**For project-specific backlogs in other locations:**
+
+Use the `/backlog add` command to manually import tasks:
+```
+/backlog add "Task description" --priority important --source project
+```
+
+Or use the CLI directly:
+```bash
+~/.claude/scripts/backlog.sh add "Task description" --priority suggestion
+```
+
 ### Technical Details
 
 - MemoryService facade extended with backlog methods

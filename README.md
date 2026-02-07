@@ -4,7 +4,7 @@
 
 [![Cross-Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-blue.svg)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-3.2-green.svg)](https://github.com/reshashi/claude-orchestrator/releases/latest)
+[![Version](https://img.shields.io/badge/version-3.5-green.svg)](https://github.com/reshashi/claude-orchestrator/releases/latest)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org/)
 
 ---
@@ -120,8 +120,21 @@ Workers progress through these states:
 
 ### Automated Quality Gates
 
-Before any PR gets merged, it goes through:
+Quality enforcement happens at multiple levels:
 
+**Git Hooks (v3.5+)** — Install with `/hooks install`:
+| Hook | What it does |
+|------|--------------|
+| `pre-commit` | Type check, lint, test, secret detection |
+| `pre-push` | Full build, all quality gates, security audit |
+| `post-merge` | Auto-add TODO/FIXME to backlog |
+| `commit-msg` | Enforce conventional commit format |
+
+**Heuristic Scripts** — Run manually or via hooks:
+- `auto-review.sh` — Static analysis (secrets, eval, any types, large files)
+- `auto-qcode.sh` — Auto-fix (whitespace, formatting, ESLint)
+
+**PR-level checks** — Before any PR gets merged:
 1. **CI checks** (your existing GitHub Actions)
 2. **QA Guardian** (code review agent)
 3. **Security scan** (`npm audit`)
@@ -129,6 +142,26 @@ Before any PR gets merged, it goes through:
 5. **Code simplifier** (if PR is large)
 
 All automatic. All in the background.
+
+### Tasks Backlog (v3.5+)
+
+Suggestions from code reviews are stored in a SQLite database, not markdown files.
+
+```bash
+# View pending tasks
+/backlog list
+
+# Add a task
+/backlog add "Refactor auth module" --priority important
+
+# Complete a task
+/backlog complete 42
+
+# Search tasks
+/backlog search "auth"
+```
+
+**Migrating from TASKS_BACKLOG.md:** Run `./install.sh --update` — existing tasks are auto-imported. See [CHANGELOG.md](CHANGELOG.md) for details.
 
 ---
 
