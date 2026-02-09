@@ -92,7 +92,7 @@ echo -e "${YELLOW}=== Mode Detection ===${NC}"
     unset CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS
     # shellcheck source=../scripts/mode-detect.sh
     source "$SCRIPT_DIR/../scripts/mode-detect.sh"
-    assert_eq "legacy" "$ORCHESTRATOR_MODE" "Default mode is legacy"
+    assert_eq "pipeline" "$ORCHESTRATOR_MODE" "Default mode is pipeline"
 )
 
 (
@@ -299,6 +299,95 @@ assert_ok $? "gate-runner.sh has valid syntax"
 # Test usage output
 output=$(bash "$PIPELINE_DIR/gate-runner.sh" 2>&1 || true)
 assert_contains "$output" "Usage:" "Shows usage on no args"
+
+# ============================================================
+echo ""
+echo -e "${YELLOW}=== Pipeline Runner ===${NC}"
+# ============================================================
+
+# Test that run.sh is parseable
+bash -n "$PIPELINE_DIR/run.sh"
+assert_ok $? "run.sh has valid syntax"
+
+# Test that run.sh can be sourced
+(
+    # Source in subshell to avoid polluting test environment
+    source "$PIPELINE_DIR/run.sh" 2>/dev/null
+    # Verify expected functions exist
+    declare -f pipeline_run >/dev/null
+    assert_ok $? "pipeline_run function exists after sourcing"
+    declare -f pipeline_resume >/dev/null
+    assert_ok $? "pipeline_resume function exists after sourcing"
+    declare -f pipeline_status >/dev/null
+    assert_ok $? "pipeline_status function exists after sourcing"
+)
+
+# Test usage output (no args → shows usage)
+output=$(bash "$PIPELINE_DIR/run.sh" 2>&1 || true)
+assert_contains "$output" "Usage:" "Shows usage on no args"
+
+# Test that _emit produces correct output format
+(
+    source "$PIPELINE_DIR/run.sh" 2>/dev/null
+    output=$(_emit "test-task" "PHASE" "CI_RUNNING" "Polling CI...")
+    assert_eq "PIPELINE|test-task|PHASE|CI_RUNNING|Polling CI..." "$output" "_emit produces correct pipe-delimited format"
+)
+
+# Test that _validate_branch rejects main/master
+(
+    source "$PIPELINE_DIR/run.sh" 2>/dev/null
+    set +e
+    _validate_branch "main" 2>/dev/null
+    assert_fail $? "_validate_branch rejects main"
+    _validate_branch "master" 2>/dev/null
+    assert_fail $? "_validate_branch rejects master"
+)
+
+# Test merge settings loading (defaults)
+(
+    source "$PIPELINE_DIR/run.sh" 2>/dev/null
+    _load_merge_settings
+    assert_eq "squash" "$MERGE_METHOD" "Default merge method is squash"
+)
+
+# ============================================================
+echo ""
+echo -e "${YELLOW}=== Orchestrator Scripts (syntax) ===${NC}"
+# ============================================================
+
+bash -n "$SCRIPT_DIR/../scripts/orchestrator.sh"
+assert_ok $? "orchestrator.sh has valid syntax"
+
+bash -n "$SCRIPT_DIR/../scripts/orchestrator-status.sh"
+assert_ok $? "orchestrator-status.sh has valid syntax"
+
+bash -n "$SCRIPT_DIR/../scripts/orchestrator-loop.sh"
+assert_ok $? "orchestrator-loop.sh has valid syntax"
+
+bash -n "$SCRIPT_DIR/../scripts/mode-detect.sh"
+assert_ok $? "mode-detect.sh has valid syntax"
+
+# ============================================================
+echo ""
+echo -e "${YELLOW}=== No iTerm References ===${NC}"
+# ============================================================
+
+# Verify no iTerm tab/window management references remain
+# Exclude: notification-only osascript (display notification), logging.sh, cost-tracker.sh, comments
+iterm_refs=$(grep -rn 'tell application "iTerm"\|window-utils\|send_to_tab\|read_tab_output\|write text\|tell tab\|tell current session' "$SCRIPT_DIR/../scripts/" "$SCRIPT_DIR/../pipeline/" 2>/dev/null || echo "")
+if [[ -z "$iterm_refs" ]]; then
+    TESTS_RUN=$((TESTS_RUN + 1))
+    TESTS_PASSED=$((TESTS_PASSED + 1))
+    echo -e "  ${GREEN}✓${NC} No iTerm tab/window management references in scripts/ or pipeline/"
+else
+    TESTS_RUN=$((TESTS_RUN + 1))
+    TESTS_FAILED=$((TESTS_FAILED + 1))
+    FAIL_MESSAGES+=("iTerm tab management references found: $iterm_refs")
+    echo -e "  ${RED}✗${NC} Found iTerm tab management references:"
+    echo "$iterm_refs" | while IFS= read -r line; do
+        echo "    $line"
+    done
+fi
 
 # ============================================================
 echo ""
