@@ -85,13 +85,23 @@ add_task() {
 
     init_db
 
+    # Dedup: skip if an identical pending task already exists
+    local escaped_title
+    escaped_title=$(echo "$title" | sed "s/'/''/g")
+    local existing
+    existing=$(sqlite3 "$DB_PATH" "SELECT id FROM tasks_backlog WHERE title = '$escaped_title' AND status = 'pending' LIMIT 1;")
+    if [ -n "$existing" ]; then
+        echo "Skipped (duplicate of #$existing): $title"
+        return 0
+    fi
+
     local created_at
     created_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
     local id
     id=$(sqlite3 "$DB_PATH" << SQL
 INSERT INTO tasks_backlog (source, priority, title, description, file_path, line_number, status, created_at)
-VALUES ('$source', '$priority', '$(echo "$title" | sed "s/'/''/g")',
+VALUES ('$source', '$priority', '$escaped_title',
         $([ -n "$description" ] && echo "'$(echo "$description" | sed "s/'/''/g")'" || echo "NULL"),
         $([ -n "$file_path" ] && echo "'$file_path'" || echo "NULL"),
         $([ -n "$line_number" ] && echo "$line_number" || echo "NULL"),
@@ -272,13 +282,66 @@ SELECT * FROM tasks_backlog WHERE id = $id;
 SQL
 }
 
+dedup_tasks() {
+    init_db
+
+    # Find and remove duplicate pending tasks (keep lowest ID)
+    local removed
+    removed=$(sqlite3 "$DB_PATH" << 'SQL'
+DELETE FROM tasks_backlog
+WHERE id NOT IN (
+    SELECT MIN(id) FROM tasks_backlog
+    WHERE status = 'pending'
+    GROUP BY title
+)
+AND status = 'pending'
+AND id NOT IN (
+    SELECT MIN(id) FROM tasks_backlog
+    WHERE status = 'pending'
+    GROUP BY title
+);
+SELECT changes();
+SQL
+)
+
+    echo "Removed $removed duplicate pending tasks"
+}
+
+cleanup_garbage() {
+    init_db
+
+    # Remove entries that are clearly code fragments, not real tasks
+    # (less than 10 chars, contain shell syntax, etc.)
+    local removed
+    removed=$(sqlite3 "$DB_PATH" << 'SQL'
+UPDATE tasks_backlog SET status = 'deleted'
+WHERE status = 'pending'
+AND (
+    length(title) < 10
+    OR title LIKE '%${%'
+    OR title LIKE '%$(%'
+    OR title LIKE '%\${NC}%'
+    OR title LIKE '%2>/dev/null%'
+    OR title LIKE '%]; then%'
+    OR title LIKE '%_FILES%'
+    OR title LIKE '%...${%'
+    OR title LIKE '%CHANGEME%'
+    OR title GLOB '*[|]*[|]*'
+);
+SELECT changes();
+SQL
+)
+
+    echo "Cleaned up $removed garbage entries"
+}
+
 show_help() {
     echo "Tasks Backlog Management"
     echo ""
     echo "Usage: backlog.sh <command> [args]"
     echo ""
     echo "Commands:"
-    echo "  add <title> [options]     - Add a new task"
+    echo "  add <title> [options]     - Add a new task (skips duplicates)"
     echo "    --priority <level>      - critical, important, or suggestion (default: suggestion)"
     echo "    --source <source>       - project, review, or manual (default: manual)"
     echo "    --description <text>    - Optional description"
@@ -295,12 +358,15 @@ show_help() {
     echo "  delete <id>               - Delete a task (soft delete)"
     echo "  search <query>            - Search tasks by title or description"
     echo "  stats                     - Show backlog statistics"
+    echo "  dedup                     - Remove duplicate pending tasks"
+    echo "  cleanup                   - Remove garbage entries (code fragments)"
     echo ""
     echo "Examples:"
     echo "  backlog.sh add 'Add input validation to API' --priority important --source review"
     echo "  backlog.sh list --status pending --priority critical"
     echo "  backlog.sh complete 42"
     echo "  backlog.sh search 'validation'"
+    echo "  backlog.sh dedup"
 }
 
 # Parse command and arguments
@@ -358,6 +424,8 @@ case "$command" in
     delete) delete_task "$1" ;;
     search) search_tasks "$*" ;;
     stats) show_stats ;;
+    dedup) dedup_tasks ;;
+    cleanup) cleanup_garbage ;;
     -h|--help|help|"") show_help ;;
     *) echo "Unknown command: $command"; show_help; exit 1 ;;
 esac
