@@ -11,6 +11,7 @@
 set -eo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BACKLOG_SCRIPT="$HOME/.claude/scripts/backlog.sh"
 
 # Load gates config
 _gates_config() {
@@ -279,6 +280,15 @@ run_gates() {
     echo "=== Gate Summary ===" >&2
     for gate in "${!results[@]}"; do
         printf "  %-20s %s\n" "$gate:" "${results[$gate]}" >&2
+    done
+
+    # Record non-blocking failures to backlog for future action
+    for gate in "${!results[@]}"; do
+        if [[ "${results[$gate]}" == "failed" ]] && ! _gate_blocking "$gate" 2>/dev/null; then
+            if [[ -x "$BACKLOG_SCRIPT" ]]; then
+                "$BACKLOG_SCRIPT" add "Gate '$gate' failed for PR #${pr_number} (non-blocking)" --priority important --source review >/dev/null 2>&1 || true
+            fi
+        fi
     done
 
     if [[ "$blocking_failed" == true ]]; then

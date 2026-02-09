@@ -99,6 +99,25 @@ Flag violations:
 - [what was done well]
 ```
 
+## Backlog Enforcement (MANDATORY)
+
+Any suggestion, improvement, or future work item that is NOT a critical blocker **MUST** be recorded in the Task Backlog database. Do NOT just print suggestions — persist them so they can be tracked and completed later.
+
+After completing the review, for each suggestion or important finding:
+
+```bash
+# For suggestions (nice-to-have improvements)
+~/.claude/scripts/backlog.sh add "<description>" --priority suggestion --source review
+
+# For important issues (should fix soon, but not blocking)
+~/.claude/scripts/backlog.sh add "<description>" --priority important --source review --file "<path>" --line <N>
+
+# For critical issues (must fix before merge)
+~/.claude/scripts/backlog.sh add "<description>" --priority critical --source review --file "<path>" --line <N>
+```
+
+This ensures no feedback is lost. Items proposed for future work MUST go into the backlog.
+
 ## Advisory Mode
 
 Remember: You are advisory only. You provide recommendations but do NOT block PRs or make changes to application code. The developer makes the final merge decision.

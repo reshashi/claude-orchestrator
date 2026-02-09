@@ -94,6 +94,17 @@ When running `/review`, suggestions and important findings should be added to th
 ~/.claude/scripts/backlog.sh add "Missing Zod validation on API endpoint" --priority important --source review --file "src/api/users.ts" --line 45
 ```
 
+## Integration with /qcode
+
+When running `/qcode` (auto-qcode.sh), all unfixed code quality issues are automatically recorded:
+
+```bash
+# Auto-qcode findings (added automatically)
+~/.claude/scripts/backlog.sh add "qcode: 3 file(s) with trailing whitespace" --priority suggestion --source review
+```
+
+To disable backlog recording: `auto-qcode.sh --no-backlog`
+
 ## Integration with /project
 
 During `/project` execution, any suggestions from quality gates that aren't critical should be added:

@@ -3,22 +3,22 @@
  * Mirrors scripts/mode-detect.sh for TypeScript consumers.
  */
 
-export type OrchestratorMode = 'agent-teams' | 'legacy';
+export type OrchestratorMode = 'agent-teams' | 'pipeline';
 
 export function detectMode(): OrchestratorMode {
-  if (process.env.ORCHESTRATOR_MODE === 'agent-teams' || process.env.ORCHESTRATOR_MODE === 'legacy') {
+  if (process.env.ORCHESTRATOR_MODE === 'agent-teams' || process.env.ORCHESTRATOR_MODE === 'pipeline') {
     return process.env.ORCHESTRATOR_MODE;
   }
   if (process.env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS) {
     return 'agent-teams';
   }
-  return 'legacy';
+  return 'pipeline';
 }
 
 export function isAgentTeams(): boolean {
   return detectMode() === 'agent-teams';
 }
 
-export function isLegacyMode(): boolean {
-  return detectMode() === 'legacy';
+export function isPipelineMode(): boolean {
+  return detectMode() === 'pipeline';
 }

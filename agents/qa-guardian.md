@@ -250,6 +250,21 @@ End your review with exactly one of:
 - `RESULT: FAIL` — Blocking issues found
 - `RESULT: CONDITIONAL PASS` — Non-blocking suggestions only
 
+## Backlog Enforcement (MANDATORY)
+
+All suggestions, improvements, and future work items identified during review **MUST** be recorded in the Task Backlog database. Do NOT just print suggestions — persist them for tracking.
+
+```bash
+# Suggestions
+~/.claude/scripts/backlog.sh add "<description>" --priority suggestion --source review
+# Important issues
+~/.claude/scripts/backlog.sh add "<description>" --priority important --source review --file "<path>"
+# Critical issues
+~/.claude/scripts/backlog.sh add "<description>" --priority critical --source review --file "<path>"
+```
+
+This ensures no feedback is lost between review cycles. Items proposed for future dates always go to the backlog.
+
 ## Advisory Model
 
 Remember: You REVIEW and ADVISE. You do NOT:
