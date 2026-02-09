@@ -196,6 +196,134 @@ _load_loop_settings() {
 _load_loop_settings
 
 # ============================================================
+# STALL DETECTION
+# ============================================================
+
+STALL_TIMEOUT="${STALL_TIMEOUT:-15}"  # minutes
+STALL_ACTION="${STALL_ACTION:-notify}"  # notify | retry | skip
+declare -A PR_LAST_ACTIVITY  # tracks last state change per PR
+
+_load_stall_settings() {
+    local config_file="${ORCHESTRATOR_CONFIG:-$HOME/.claude-orchestrator/config/orchestrator.yaml}"
+    if [[ ! -f "$config_file" ]]; then
+        config_file="$PIPELINE_DIR/../config/orchestrator.yaml"
+    fi
+    if [[ -f "$config_file" ]]; then
+        local val
+        val=$(grep 'stall_timeout_minutes:' "$config_file" 2>/dev/null | awk '{print $2}')
+        [[ -n "$val" ]] && STALL_TIMEOUT="$val"
+        val=$(grep 'stall_action:' "$config_file" 2>/dev/null | awk '{print $2}')
+        [[ -n "$val" ]] && STALL_ACTION="$val"
+    fi
+    return 0
+}
+_load_stall_settings
+
+check_stall() {
+    local pr_num="$1" branch="$2" state="$3"
+    local now
+    now=$(date +%s)
+    local key="${pr_num}_${branch}"
+
+    # Record first seen time for this state
+    if [[ -z "${PR_LAST_ACTIVITY[$key]:-}" ]]; then
+        PR_LAST_ACTIVITY[$key]="$now"
+        return 1  # not stalled
+    fi
+
+    local elapsed=$(( now - PR_LAST_ACTIVITY[$key] ))
+    local threshold=$(( STALL_TIMEOUT * 60 ))
+
+    if [[ $elapsed -ge $threshold ]]; then
+        log "STALL DETECTED: PR #${pr_num} (${branch}) stuck in ${state} for ${STALL_TIMEOUT}+ minutes"
+
+        case "$STALL_ACTION" in
+            notify)
+                notify_human "Stall Detected" "PR #${pr_num} stuck in ${state} for ${STALL_TIMEOUT}m"
+                # Reset timer so we don't spam notifications
+                PR_LAST_ACTIVITY[$key]="$now"
+                ;;
+            retry)
+                log "Retrying PR #${pr_num} — resetting to CI_RUNNING"
+                delivery_transition "$branch" "CI_RUNNING" 2>/dev/null || true
+                PR_LAST_ACTIVITY[$key]="$now"
+                ;;
+            skip)
+                log "Skipping stalled PR #${pr_num}"
+                ;;
+        esac
+        return 0  # stalled
+    fi
+
+    return 1  # not stalled
+}
+
+# Reset activity tracker on state change
+record_activity() {
+    local pr_num="$1" branch="$2"
+    local key="${pr_num}_${branch}"
+    PR_LAST_ACTIVITY[$key]=$(date +%s)
+}
+
+# ============================================================
+# AGENT TEAMS HEALTH MONITORING
+# ============================================================
+
+HEALTH_CHECK_INTERVAL="${HEALTH_CHECK_INTERVAL:-60}"  # seconds
+LAST_HEALTH_CHECK=0
+
+_load_at_settings() {
+    local config_file="${ORCHESTRATOR_CONFIG:-$HOME/.claude-orchestrator/config/orchestrator.yaml}"
+    if [[ ! -f "$config_file" ]]; then
+        config_file="$PIPELINE_DIR/../config/orchestrator.yaml"
+    fi
+    if [[ -f "$config_file" ]]; then
+        local val
+        val=$(grep 'health_check_interval_seconds:' "$config_file" 2>/dev/null | awk '{print $2}')
+        [[ -n "$val" ]] && HEALTH_CHECK_INTERVAL="$val"
+    fi
+    return 0
+}
+_load_at_settings
+
+check_agent_teams_health() {
+    # Only runs when in agent-teams mode
+    if ! is_agent_teams; then
+        return 0
+    fi
+
+    local now
+    now=$(date +%s)
+    local elapsed=$(( now - LAST_HEALTH_CHECK ))
+
+    if [[ $elapsed -lt $HEALTH_CHECK_INTERVAL ]]; then
+        return 0
+    fi
+    LAST_HEALTH_CHECK=$now
+
+    # Check for running Claude processes (teammates)
+    local claude_pids
+    claude_pids=$(pgrep -f 'claude' 2>/dev/null | wc -l | tr -d ' ')
+
+    if [[ "$claude_pids" -eq 0 ]]; then
+        log "AGENT TEAMS: No Claude processes detected — teammates may have crashed"
+        notify_human "Agent Teams Warning" "No Claude processes running — check teammate sessions"
+        return 1
+    fi
+
+    # Check for tmux sessions (if using tmux backend)
+    if command -v tmux &>/dev/null; then
+        local tmux_sessions
+        tmux_sessions=$(tmux list-sessions 2>/dev/null | wc -l | tr -d ' ')
+        if [[ "$tmux_sessions" -gt 0 ]]; then
+            log "AGENT TEAMS: ${tmux_sessions} tmux session(s), ${claude_pids} Claude process(es) active"
+        fi
+    fi
+
+    return 0
+}
+
+# ============================================================
 # AUTO-DETECT REPO
 # ============================================================
 
@@ -208,9 +336,14 @@ fi
 # MAIN DELIVERY LOOP
 # ============================================================
 
-log "Starting delivery pipeline loop (polling every ${POLL_INTERVAL}s)"
+log "Starting delivery pipeline loop (polling every ${POLL_INTERVAL}s, stall timeout: ${STALL_TIMEOUT}m)"
+if is_agent_teams; then
+    log "Agent Teams mode active — health monitoring enabled (every ${HEALTH_CHECK_INTERVAL}s)"
+fi
 
 while true; do
+    # Agent Teams health check (runs on its own interval)
+    check_agent_teams_health
     # Find all open PRs in this repo
     OPEN_PRS=$(gh pr list --state open --json number,headRefName \
         --jq '.[] | "\(.number)|\(.headRefName)"' 2>/dev/null || echo "")
@@ -240,10 +373,12 @@ while true; do
         case "$CI" in
             passed)
                 if [[ "$DELIVERY_STATE" != "REVIEWING" && "$DELIVERY_STATE" != "APPROVED" && "$DELIVERY_STATE" != "MERGING" ]]; then
+                    record_activity "$PR_NUM" "$BRANCH"
                     delivery_transition "$BRANCH" "REVIEWING" 2>/dev/null || true
                     log "PR #${PR_NUM} CI passed, running quality gates..."
 
                     if run_gates "$PR_NUM" "$BRANCH" 2>/dev/null; then
+                        record_activity "$PR_NUM" "$BRANCH"
                         delivery_transition "$BRANCH" "APPROVED" 2>/dev/null || true
                         delivery_transition "$BRANCH" "MERGING" 2>/dev/null || true
 
@@ -253,6 +388,7 @@ while true; do
                         fi
 
                         if pr_merge "${MERGE_ARGS[@]}" 2>/dev/null; then
+                            record_activity "$PR_NUM" "$BRANCH"
                             delivery_transition "$BRANCH" "MERGED" 2>/dev/null || true
                             log "PR #${PR_NUM} merged successfully"
 
@@ -267,16 +403,23 @@ while true; do
                         delivery_transition "$BRANCH" "BLOCKED" 2>/dev/null || true
                         log "PR #${PR_NUM} blocked by quality gates"
                     fi
+                else
+                    # Already in a later state — check for stalls
+                    check_stall "$PR_NUM" "$BRANCH" "$DELIVERY_STATE" || true
                 fi
                 ;;
             failed)
                 if [[ "$DELIVERY_STATE" != "BLOCKED" ]]; then
+                    record_activity "$PR_NUM" "$BRANCH"
                     delivery_transition "$BRANCH" "BLOCKED" 2>/dev/null || true
                     log "PR #${PR_NUM} CI failed"
+                else
+                    check_stall "$PR_NUM" "$BRANCH" "BLOCKED" || true
                 fi
                 ;;
             pending|unknown)
-                log "PR #${PR_NUM} CI: ${CI}"
+                # CI still running — check for stalls
+                check_stall "$PR_NUM" "$BRANCH" "CI_${CI}" || true
                 ;;
         esac
     done

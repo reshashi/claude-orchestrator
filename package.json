@@ -1,7 +1,7 @@
 {
   "name": "claude-orchestrator",
-  "version": "4.0.0-alpha.1",
-  "description": "Cross-platform Claude Code worker orchestration with background processes, HTTP API, and persistent memory",
+  "version": "4.0.0-alpha.2",
+  "description": "Automated delivery pipeline for Claude Code — PR creation, CI monitoring, quality gates, merge automation",
   "type": "module",
   "main": "dist/index.js",
   "bin": {

@@ -16,13 +16,14 @@ NC='\033[0m'
 
 # Options
 FIX_MODE=false
-ADD_TO_BACKLOG=false
+ADD_TO_BACKLOG=true  # Always record findings to backlog by default
 BACKLOG_SCRIPT="$HOME/.claude/scripts/backlog.sh"
 
 while [[ $# -gt 0 ]]; do
     case $1 in
         --fix) FIX_MODE=true; shift ;;
-        --add-to-backlog) ADD_TO_BACKLOG=true; shift ;;
+        --add-to-backlog) ADD_TO_BACKLOG=true; shift ;;  # kept for backwards compat
+        --no-backlog) ADD_TO_BACKLOG=false; shift ;;
         *) shift ;;
     esac
 done

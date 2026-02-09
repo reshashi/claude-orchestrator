@@ -17,11 +17,14 @@ NC='\033[0m'
 # Options
 FIX_MODE=false
 DRY_RUN=false
+ADD_TO_BACKLOG=true  # Always record findings to backlog by default
+BACKLOG_SCRIPT="$HOME/.claude/scripts/backlog.sh"
 
 while [[ $# -gt 0 ]]; do
     case $1 in
         --fix) FIX_MODE=true; shift ;;
         --dry-run) DRY_RUN=true; shift ;;
+        --no-backlog) ADD_TO_BACKLOG=false; shift ;;
         *) shift ;;
     esac
 done
@@ -34,7 +37,7 @@ FIXES_APPLIED=0
 FIXES_AVAILABLE=0
 
 report_fix() {
-    local _type="$1"  # unused but kept for future categorization
+    local _category="$1"  # reserved for future categorization
     local message="$2"
     local fixed="$3"
 
@@ -44,6 +47,10 @@ report_fix() {
     else
         echo -e "  ${YELLOW}[AVAILABLE]${NC} $message"
         FIXES_AVAILABLE=$((FIXES_AVAILABLE + 1))
+        # Record unfixed items to backlog for future action
+        if [ "$ADD_TO_BACKLOG" = true ] && [ -x "$BACKLOG_SCRIPT" ]; then
+            "$BACKLOG_SCRIPT" add "qcode: $message" --priority suggestion --source review >/dev/null 2>&1 || true
+        fi
     fi
 }
 
@@ -202,6 +209,11 @@ if [ "$FIX_MODE" = true ]; then
 else
     echo -e "\n  ${YELLOW}Fixes Available:${NC}  $FIXES_AVAILABLE"
     echo -e "\n  Run with ${BLUE}--fix${NC} to apply automatic fixes"
+fi
+
+if [ "$ADD_TO_BACKLOG" = true ] && [ $FIXES_AVAILABLE -gt 0 ]; then
+    echo -e "\n  ${BLUE}→ $FIXES_AVAILABLE issue(s) added to backlog${NC}"
+    echo "    Run '~/.claude/scripts/backlog.sh list' to view"
 fi
 
 echo -e "\n${BLUE}══════════════════════════════════════════════════════════════${NC}\n"

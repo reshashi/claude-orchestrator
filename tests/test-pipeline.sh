@@ -258,8 +258,24 @@ assert_ok $? "gates.yaml has merge method"
 # Test orchestrator.yaml exists
 file_exists "$CONFIG_DIR/orchestrator.yaml"; assert_ok $? "orchestrator.yaml exists"
 
-output=$(grep 'version: 2' "$CONFIG_DIR/orchestrator.yaml")
-assert_ok $? "orchestrator.yaml has version 2"
+output=$(grep 'version: 3' "$CONFIG_DIR/orchestrator.yaml")
+assert_ok $? "orchestrator.yaml has version 3"
+
+# Test Phase 3 config additions
+output=$(grep 'stall_timeout_minutes:' "$CONFIG_DIR/orchestrator.yaml")
+assert_ok $? "orchestrator.yaml has stall timeout"
+
+output=$(grep 'stall_action:' "$CONFIG_DIR/orchestrator.yaml")
+assert_ok $? "orchestrator.yaml has stall action"
+
+output=$(grep 'health_check_interval_seconds:' "$CONFIG_DIR/orchestrator.yaml")
+assert_ok $? "orchestrator.yaml has health check interval"
+
+output=$(grep 'auto_record_review:' "$CONFIG_DIR/orchestrator.yaml")
+assert_ok $? "orchestrator.yaml has backlog auto_record_review"
+
+output=$(grep 'auto_record_qcode:' "$CONFIG_DIR/orchestrator.yaml")
+assert_ok $? "orchestrator.yaml has backlog auto_record_qcode"
 
 # ============================================================
 echo ""
@@ -369,6 +385,66 @@ assert_ok $? "mode-detect.sh has valid syntax"
 
 # ============================================================
 echo ""
+echo -e "${YELLOW}=== Backlog Enforcement ===${NC}"
+# ============================================================
+
+# Verify auto-review.sh defaults to backlog recording
+output=$(grep 'ADD_TO_BACKLOG=true' "$SCRIPT_DIR/../scripts/auto-review.sh")
+assert_ok $? "auto-review.sh defaults ADD_TO_BACKLOG=true"
+
+# Verify auto-qcode.sh has backlog integration
+output=$(grep 'ADD_TO_BACKLOG=true' "$SCRIPT_DIR/../scripts/auto-qcode.sh")
+assert_ok $? "auto-qcode.sh defaults ADD_TO_BACKLOG=true"
+
+output=$(grep 'BACKLOG_SCRIPT' "$SCRIPT_DIR/../scripts/auto-qcode.sh")
+assert_ok $? "auto-qcode.sh has BACKLOG_SCRIPT reference"
+
+# Verify auto-review.sh supports --no-backlog opt-out
+output=$(grep 'no-backlog' "$SCRIPT_DIR/../scripts/auto-review.sh")
+assert_ok $? "auto-review.sh supports --no-backlog opt-out"
+
+output=$(grep 'no-backlog' "$SCRIPT_DIR/../scripts/auto-qcode.sh")
+assert_ok $? "auto-qcode.sh supports --no-backlog opt-out"
+
+# Verify gate-runner.sh has backlog recording for non-blocking failures
+output=$(grep 'BACKLOG_SCRIPT' "$PIPELINE_DIR/gate-runner.sh")
+assert_ok $? "gate-runner.sh has backlog integration"
+
+# Verify review command enforces backlog
+output=$(grep -i 'Backlog Enforcement' "$SCRIPT_DIR/../commands/review.md")
+assert_ok $? "review.md has Backlog Enforcement section"
+
+# Verify QA Guardian agent enforces backlog
+output=$(grep -i 'Backlog Enforcement' "$SCRIPT_DIR/../agents/qa-guardian.md")
+assert_ok $? "qa-guardian.md has Backlog Enforcement section"
+
+# ============================================================
+echo ""
+echo -e "${YELLOW}=== Stall Detection ===${NC}"
+# ============================================================
+
+# Verify orchestrator-loop.sh has stall detection functions
+(
+    # Source in subshell — need to stub out the pipeline sources
+    ORCHESTRATOR_STATE_DIR="$TEMP_DIR/state-stall"
+    mkdir -p "$ORCHESTRATOR_STATE_DIR"
+
+    # Verify the functions exist in the file
+    output=$(grep 'check_stall()' "$SCRIPT_DIR/../scripts/orchestrator-loop.sh")
+    assert_ok $? "orchestrator-loop.sh has check_stall function"
+
+    output=$(grep 'record_activity()' "$SCRIPT_DIR/../scripts/orchestrator-loop.sh")
+    assert_ok $? "orchestrator-loop.sh has record_activity function"
+
+    output=$(grep 'check_agent_teams_health()' "$SCRIPT_DIR/../scripts/orchestrator-loop.sh")
+    assert_ok $? "orchestrator-loop.sh has check_agent_teams_health function"
+
+    output=$(grep 'STALL_TIMEOUT' "$SCRIPT_DIR/../scripts/orchestrator-loop.sh")
+    assert_ok $? "orchestrator-loop.sh has STALL_TIMEOUT config"
+)
+
+# ============================================================
+echo ""
 echo -e "${YELLOW}=== No iTerm References ===${NC}"
 # ============================================================
 
@@ -395,10 +471,10 @@ echo -e "${YELLOW}=== Version ===${NC}"
 # ============================================================
 
 version=$(cat "$SCRIPT_DIR/../version")
-assert_eq "4.0.0-alpha.1" "$version" "version file is 4.0.0-alpha.1"
+assert_eq "4.0.0-alpha.2" "$version" "version file is 4.0.0-alpha.2"
 
 pkg_version=$(grep '"version"' "$SCRIPT_DIR/../package.json" | head -1 | sed 's/.*"version": "//; s/".*//')
-assert_eq "4.0.0-alpha.1" "$pkg_version" "package.json version is 4.0.0-alpha.1"
+assert_eq "4.0.0-alpha.2" "$pkg_version" "package.json version is 4.0.0-alpha.2"
 
 # ============================================================
 echo ""

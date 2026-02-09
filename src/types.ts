@@ -150,6 +150,8 @@ export interface OrchestratorConfig {
   autoMerge: boolean;            // Whether to auto-merge passed PRs
   autoReview: boolean;           // Whether to auto-run QA review
   memory?: MemoryConfig;         // Memory persistence configuration
+  stall?: StallConfig;           // Stall detection configuration
+  agentTeams?: AgentTeamsConfig;  // Agent Teams health monitoring
 }
 
 // Memory system configuration
@@ -178,6 +180,21 @@ export interface DeliveryEntry {
   gates: Record<string, 'pending' | 'passed' | 'failed'>;
   createdAt: string;
   updatedAt: string;
+}
+
+// Stall detection config
+export type StallAction = 'notify' | 'retry' | 'skip';
+
+export interface StallConfig {
+  timeoutMinutes: number;
+  action: StallAction;
+}
+
+// Agent Teams health config
+export interface AgentTeamsConfig {
+  healthCheckIntervalSeconds: number;
+  sessionTimeoutMinutes: number;
+  autoRestartCrashed: boolean;
 }
 
 // Logger interface

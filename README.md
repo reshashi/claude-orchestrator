@@ -1,167 +1,173 @@
 # Claude Code Orchestrator
 
-> Parallel development superpowers for Claude Code. One orchestrator, many workers.
+> Automated delivery pipeline for Claude Code. PR creation, CI monitoring, quality gates, and merge — hands-free.
 
-[![Cross-Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-blue.svg)](https://nodejs.org/)
+[![Cross-Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-blue.svg)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-3.5-green.svg)](https://github.com/reshashi/claude-orchestrator/releases/latest)
+[![Version](https://img.shields.io/badge/version-4.0.0--alpha.2-green.svg)](https://github.com/reshashi/claude-orchestrator/releases/latest)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org/)
 
 ---
 
 ## TL;DR
 
-**What it does:** Runs multiple Claude Code sessions in parallel, each working on a different part of your project simultaneously.
+**What it does:** Watches your open PRs and automatically runs them through CI, quality gates, and merge. Also provides parallel Claude Code workers via git worktrees.
 
-**How it works:** Each worker gets its own isolated git worktree (separate directory, separate branch). Workers run as background processes. An orchestrator monitors them, runs QA reviews, and merges their PRs automatically.
+**How it works:** A delivery pipeline state machine tracks each PR through `WORKING → PR_CREATING → CI_RUNNING → REVIEWING → APPROVED → MERGING → MERGED`. Quality agents review every PR. Stall detection catches stuck work.
 
 **How to use it:**
 
 ```bash
 # Install
 git clone https://github.com/reshashi/claude-orchestrator.git ~/.claude-orchestrator
-cd ~/.claude-orchestrator && npm install && npm run build
-export PATH="$HOME/.claude-orchestrator/bin:$PATH"
+cd ~/.claude-orchestrator && bash install.sh -y
 
 # Use (from inside Claude Code)
-/project "Add user authentication with OAuth"   # Full autonomous mode
-# OR
-/spawn auth-db "Create users table"             # Manual worker spawning
-/spawn auth-api "Build login API"
-/spawn auth-ui "Create login form"
+/deliver feature/my-branch      # Push a branch through the delivery pipeline
+/project "Add user auth"        # Full autonomous mode: plan → spawn → deliver
+/status                         # See pipeline state + active deliveries
+/backlog list                   # View tracked suggestions and future work
 ```
-
-That's it. Claude handles the rest.
 
 ---
 
 ## What Problem Does This Solve?
 
-When building features, you often need to work on multiple parts simultaneously:
-- Database migrations
-- Backend API routes
-- Frontend components
-- Tests
+Claude Code Agent Teams handles multi-session orchestration natively. But it does **not** provide:
 
-Normally, you'd do these sequentially. With the orchestrator, Claude works on all of them **at the same time** in separate git branches, then merges them together.
+- **A delivery pipeline** — PR creation, CI monitoring, quality review gates, merge automation
+- **Git worktree isolation** — conflict-free parallel branches for write-heavy tasks
+- **Persistent quality agents** — QA Guardian, DevOps Engineer, Code Simplifier with review mandates
+- **Stall detection** — identify stuck PRs and crashed sessions
+- **Task Backlog** — SQLite database for tracking suggestions and future work
 
-**Before:** 4 tasks × 30 min each = 2 hours
-**After:** 4 tasks in parallel = 30-40 minutes
+Claude Orchestrator v4.0 fills these gaps. It integrates with Agent Teams when available, and works standalone when not.
 
 ---
 
-## How It Actually Works
-
-### The Architecture
+## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│   YOU: "Add user authentication"                            │
-└──────────────────────────┬──────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    ORCHESTRATOR                              │
+│  CLAUDE-ORCHESTRATOR v4.0                                    │
 │                                                              │
-│  1. Creates a PRD (what to build, success criteria)         │
-│  2. Breaks it into parallel tasks                           │
-│  3. Creates git worktrees (isolated directories)            │
-│  4. Spawns Claude workers (background processes)            │
-│  5. Monitors progress via JSONL streaming                   │
-│  6. Runs QA reviews on each PR                              │
-│  7. Merges PRs when they pass                               │
-│  8. Notifies you when done                                  │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐       │
+│  │   Delivery   │  │   Worktree   │  │  Automation  │       │
+│  │   Pipeline   │  │  Isolation   │  │    Loop      │       │
+│  │              │  │              │  │              │       │
+│  │ PR → CI →    │  │ git worktree │  │ Poll PRs     │       │
+│  │ Review →     │  │ per worker   │  │ Stall detect │       │
+│  │ Merge        │  │              │  │ AT health    │       │
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘       │
+│         │                 │                 │               │
+│  ┌──────┴─────────────────┴─────────────────┴───────┐       │
+│  │              Quality Agents                       │       │
+│  │  QA Guardian · DevOps · Code Simplifier · Verify  │       │
+│  └───────────────────────────────────────────────────┘       │
 └──────────────────────────┬──────────────────────────────────┘
                            │
-          ┌────────────────┼────────────────┐
-          ▼                ▼                ▼
-    ┌──────────┐     ┌──────────┐     ┌──────────┐
-    │ Worker 1 │     │ Worker 2 │     │ Worker 3 │
-    │ auth-db  │     │ auth-api │     │ auth-ui  │
-    │          │     │          │     │          │
-    │ Branch:  │     │ Branch:  │     │ Branch:  │
-    │ feature/ │     │ feature/ │     │ feature/ │
-    │ auth-db  │     │ auth-api │     │ auth-ui  │
-    └──────────┘     └──────────┘     └──────────┘
-         │                │                │
-         ▼                ▼                ▼
-       PR #1            PR #2            PR #3
-         │                │                │
-         └────────────────┼────────────────┘
-                          ▼
+              ┌────────────┼────────────┐
+              ▼            ▼            ▼
+        ┌──────────┐ ┌──────────┐ ┌──────────┐
+        │ Worker 1 │ │ Worker 2 │ │ Worker 3 │
+        │ worktree │ │ worktree │ │ worktree │
+        │ branch A │ │ branch B │ │ branch C │
+        └────┬─────┘ └────┬─────┘ └────┬─────┘
+             │             │             │
+             ▼             ▼             ▼
+           PR #1         PR #2         PR #3
+             │             │             │
+             └─────────────┼─────────────┘
+                           ▼
                     All merged to main
 ```
 
-### Git Worktrees: The Secret Sauce
+### Delivery Pipeline
 
-Each worker operates in a **git worktree** — a separate working directory with its own branch, but sharing the same git history. This means:
+Every PR goes through a state machine:
 
-- **No merge conflicts** between workers (they're on different branches)
-- **Full isolation** (each worker has its own `node_modules`, etc.)
-- **Easy cleanup** (just delete the worktree directory)
+| State | What's Happening |
+|-------|------------------|
+| `WORKING` | Code being written |
+| `PR_CREATING` | PR being opened |
+| `CI_RUNNING` | GitHub Actions running |
+| `REVIEWING` | Quality agents checking code |
+| `APPROVED` | All gates passed |
+| `MERGING` | PR being merged |
+| `MERGED` | Done |
+| `BLOCKED` | CI failed or gate blocked |
 
-Worktrees live in `~/.worktrees/<repo-name>/<worker-name>/`.
+The delivery pipeline is configured via `config/gates.yaml`:
 
-### Worker Lifecycle
-
-Workers progress through these states:
-
-| State | Emoji | What's Happening |
-|-------|-------|------------------|
-| `SPAWNING` | ⏳ | Process starting up |
-| `INITIALIZING` | 🔄 | Claude loading context |
-| `WORKING` | 💻 | Actively writing code |
-| `PR_OPEN` | 📬 | PR created, CI running |
-| `REVIEWING` | 🔍 | QA Guardian checking code |
-| `MERGING` | 🔀 | PR being merged |
-| `MERGED` | ✅ | Done! |
-| `ERROR` | ❌ | Something went wrong |
-| `STOPPED` | 🛑 | Manually stopped |
-
-### Automated Quality Gates
-
-Quality enforcement happens at multiple levels:
-
-**Git Hooks (v3.5+)** — Install with `/hooks install`:
-| Hook | What it does |
-|------|--------------|
-| `pre-commit` | Type check, lint, test, secret detection |
-| `pre-push` | Full build, all quality gates, security audit |
-| `post-merge` | Auto-add TODO/FIXME to backlog |
-| `commit-msg` | Enforce conventional commit format |
-
-**Heuristic Scripts** — Run manually or via hooks:
-- `auto-review.sh` — Static analysis (secrets, eval, any types, large files)
-- `auto-qcode.sh` — Auto-fix (whitespace, formatting, ESLint)
-
-**PR-level checks** — Before any PR gets merged:
-1. **CI checks** (your existing GitHub Actions)
-2. **QA Guardian** (code review agent)
-3. **Security scan** (`npm audit`)
-4. **DevOps review** (if infrastructure files changed)
-5. **Code simplifier** (if PR is large)
-
-All automatic. All in the background.
-
-### Tasks Backlog (v3.5+)
-
-Suggestions from code reviews are stored in a SQLite database, not markdown files.
-
-```bash
-# View pending tasks
-/backlog list
-
-# Add a task
-/backlog add "Refactor auth module" --priority important
-
-# Complete a task
-/backlog complete 42
-
-# Search tasks
-/backlog search "auth"
+```yaml
+gates:
+  qa-guardian:
+    enabled: true
+    blocking: true       # Must pass to merge
+    trigger: always
+  devops-engineer:
+    enabled: true
+    blocking: false      # Advisory only
+    trigger:
+      files_match:
+        - ".github/**"
+        - "Dockerfile*"
+  code-simplifier:
+    enabled: true
+    blocking: false
+    trigger:
+      min_lines_changed: 50
+settings:
+  merge_method: squash
+  delete_branch_on_merge: true
+  auto_merge: true
 ```
 
-**Migrating from TASKS_BACKLOG.md:** Run `./install.sh --update` — existing tasks are auto-imported. See [CHANGELOG.md](CHANGELOG.md) for details.
+### Quality Agents
+
+| Agent | Blocking | Trigger | What it Does |
+|-------|----------|---------|--------------|
+| **QA Guardian** | Yes | Always | Policy compliance, test coverage, code quality |
+| **Security** | Yes | Always | Secret detection, eval/XSS checks, HIPAA compliance |
+| **DevOps Engineer** | No | Infra files | CI/CD, Dockerfile, deployment config review |
+| **Code Simplifier** | No | 50+ lines | Readability, complexity reduction |
+| **Verify App** | Yes | Always | Build, type-check, test verification |
+
+### Stall Detection
+
+The automation loop monitors PR progress and alerts when a delivery stalls:
+
+```yaml
+# config/orchestrator.yaml
+loop:
+  stall_timeout_minutes: 15
+  stall_action: notify    # notify | retry | skip
+```
+
+When a PR has been in the same state for longer than the timeout, the orchestrator takes the configured action (macOS notification, retry the pipeline stage, or skip it).
+
+### Agent Teams Integration
+
+When Claude Code Agent Teams is enabled (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`), the orchestrator:
+
+- Delegates session spawning and task management to Agent Teams
+- Provides delivery pipeline capabilities that Agent Teams lacks
+- Monitors teammate health (Claude processes, tmux sessions)
+- Detects crashed sessions and alerts the user
+
+### Tasks Backlog
+
+All suggestions from code reviews, quality gates, and manual entries are stored in a SQLite database:
+
+```bash
+/backlog list                          # View pending tasks
+/backlog add "Refactor auth" --priority important
+/backlog complete 42
+/backlog search "validation"
+/backlog stats
+```
+
+The `/review` and `/qcode` commands (and their automated counterparts) **always** record findings to the backlog. Future work proposals never get lost.
 
 ---
 
@@ -171,276 +177,185 @@ Suggestions from code reviews are stored in a SQLite database, not markdown file
 
 | Requirement | Why |
 |-------------|-----|
+| **Bash 4.0+** | Required for associative arrays |
 | **Node.js 18+** | Orchestrator runtime |
-| **Bash 4.0+** | Required for associative arrays in scripts |
 | **Git 2.20+** | Worktree support |
 | **[Claude Code CLI](https://claude.ai/code)** | The AI that does the work |
-| **[GitHub CLI](https://cli.github.com/)** | PR automation (optional but recommended) |
+| **[GitHub CLI](https://cli.github.com/)** | PR automation |
 
-> **macOS users:** macOS ships with Bash 3.2 (from 2007) due to GPL licensing. Install modern Bash via Homebrew:
+> **macOS users:** macOS ships with Bash 3.2. Install modern Bash:
 > ```bash
 > brew install bash
-> # Bash 5.x will be installed to /opt/homebrew/bin/bash (Apple Silicon) or /usr/local/bin/bash (Intel)
-> # The installer will detect it automatically via PATH
 > ```
 
-### Install the Orchestrator
+### Install
 
 ```bash
-# Clone it
 git clone https://github.com/reshashi/claude-orchestrator.git ~/.claude-orchestrator
-
-# Build it
 cd ~/.claude-orchestrator
-npm install
-npm run build
+bash install.sh -y
+```
 
-# Add to your PATH (add this line to ~/.bashrc or ~/.zshrc)
-export PATH="$HOME/.claude-orchestrator/bin:$PATH"
+The installer:
+1. Checks bash 4+ and required tools
+2. Builds the TypeScript orchestrator (`npm install && npm run build`)
+3. Installs pipeline scripts to `~/.claude-orchestrator/pipeline/`
+4. Installs config files to `~/.claude-orchestrator/config/`
+5. Sets up shell aliases and commands
+6. Migrates any existing v3.x memory data
 
-# Verify it works
-claude-orchestrator --version
+### Uninstall
+
+```bash
+bash ~/.claude-orchestrator/install.sh --uninstall
 ```
 
 ---
 
-## Usage Guide
+## Usage
 
-### Option 1: Full Autonomous Mode (Recommended)
+### Delivery Pipeline
 
-Let Claude handle everything from concept to completion.
-
-```bash
-# Start Claude in your project
-cd your-project
-claude
-
-# Give it a high-level description
-/project "Add user authentication with email magic links"
-```
-
-What happens next:
-
-1. **PRD Generation**: Claude creates a Product Requirements Document with:
-   - Feature description
-   - Technical approach
-   - Success criteria
-   - Worker task breakdown
-
-2. **Worker Spawning**: Creates worktrees and starts workers:
-   ```
-   Spawning workers:
-     ⏳ auth-db    → Create users and sessions tables
-     ⏳ auth-api   → Implement magic link endpoints
-     ⏳ auth-ui    → Build login/signup components
-   ```
-
-3. **Monitoring**: Orchestrator watches progress silently
-
-4. **Review & Merge**: When workers create PRs:
-   - Runs CI
-   - Runs QA Guardian
-   - Merges when ready
-
-5. **Completion**: Notifies you when everything is merged
-
-### Option 2: Manual Worker Spawning
-
-More control over individual tasks.
+Push any branch through the automated pipeline:
 
 ```bash
-# Inside Claude Code, spawn workers one by one
-/spawn auth-db "Create users table with email, created_at, updated_at columns"
-/spawn auth-api "Implement POST /auth/magic-link and GET /auth/verify endpoints"
-/spawn auth-ui "Build LoginForm component with email input and loading state"
+# From inside Claude Code
+/deliver feature/my-branch
 
-# Check on them
-claude-orchestrator status
-
-# Output:
-# 💻 auth-db     WORKING
-# 💻 auth-api    WORKING
-# 📬 auth-ui     PR_OPEN   PR #42
-
-# Read a worker's output
-claude-orchestrator read auth-db
-
-# Send additional instructions
-claude-orchestrator send auth-api "Also add rate limiting to the endpoints"
-
-# Merge when ready
-/merge auth-ui
+# Or from the command line
+~/.claude-orchestrator/scripts/orchestrator.sh deliver feature/my-branch
 ```
 
-### Option 3: CLI-Only (No Claude Code)
+The pipeline will:
+1. Create a PR (or find an existing one)
+2. Poll CI until it passes or fails
+3. Run quality agents (QA Guardian, Security, etc.)
+4. Merge the PR if all blocking gates pass
+5. Record any suggestions to the backlog
 
-Use the orchestrator directly from your terminal.
+### Autonomous Project Mode
+
+Let Claude handle everything:
 
 ```bash
-# Spawn a worker
-claude-orchestrator spawn auth-db "Create users table migration"
-
-# Monitor all workers
-claude-orchestrator loop
-
-# In another terminal, check status
-claude-orchestrator status
-claude-orchestrator list --all
+/project "Add user authentication with magic links"
 ```
+
+This creates a PRD, breaks it into tasks, spawns parallel workers in git worktrees, and delivers each one through the pipeline.
+
+### Manual Worker Spawning
+
+```bash
+/spawn auth-db "Create users table migration"
+/spawn auth-api "Build login API endpoints"
+/spawn auth-ui "Create login form component"
+
+/status          # Check all workers and deliveries
+/merge auth-ui   # Manually trigger merge
+```
+
+### Background Automation Loop
+
+Run the loop to automatically process all open PRs:
+
+```bash
+# Start the delivery loop
+~/.claude-orchestrator/scripts/orchestrator-loop.sh &
+
+# Check status
+~/.claude-orchestrator/scripts/orchestrator-status.sh
+
+# Stop
+kill $(cat ~/.claude/orchestrator.pid)
+```
+
+The loop:
+- Polls for open PRs every 5 seconds (configurable)
+- Runs CI monitoring and quality gates
+- Auto-merges approved PRs
+- Detects stalled deliveries
+- Monitors Agent Teams health (when enabled)
 
 ---
 
-## CLI Reference
-
-### Core Commands
-
-| Command | Description |
-|---------|-------------|
-| `spawn <name> <task>` | Create worktree + start worker |
-| `list [--all]` | List workers (add `--all` for completed) |
-| `status [worker-id]` | Detailed status of one or all workers |
-| `read <worker-id>` | Read worker's output log |
-| `send <worker-id> <msg>` | Send message to worker |
-| `stop <worker-id>` | Stop a worker |
-| `merge <worker-id>` | Trigger PR merge |
-| `cleanup [worker-id]` | Remove completed worker state |
-| `loop` | Run monitoring loop |
-| `serve` | Start HTTP/WebSocket API server |
+## Commands Reference
 
 ### Claude Code Slash Commands
 
 | Command | Description |
 |---------|-------------|
-| `/project "description"` | Full autonomous project |
-| `/spawn <name> "task"` | Spawn a worker |
-| `/status` | Check all workers |
+| `/project "desc"` | Full autonomous project execution |
+| `/deliver [branch]` | Push a branch through the delivery pipeline |
+| `/spawn <name> "task"` | Spawn a worker in a git worktree |
+| `/status` | Pipeline state, deliveries, and worker status |
 | `/merge <name>` | Merge a worker's PR |
-| `/review` | Run QA Guardian |
-| `/deploy` | Run deployment checks |
+| `/review` | Run QA Guardian review (records findings to backlog) |
+| `/backlog [cmd]` | Manage the tasks backlog |
+| `/hooks [cmd]` | Install/manage git hooks |
+| `/deploy` | Run deployment checklist |
+| `/mem-search "query"` | Search worker memory |
 
-### Examples
+### CLI Commands
 
 ```bash
-# Spawn with specific repo
-claude-orchestrator spawn dark-mode "Add theme toggle" --repo my-app
+# Delivery pipeline
+orchestrator.sh deliver <branch>     # Run pipeline for a branch
+orchestrator.sh deliveries           # List active deliveries
+orchestrator.sh prs                  # List open PRs
+orchestrator.sh status <task-id>     # Delivery detail
+orchestrator.sh resume <task-id>     # Resume blocked delivery
 
-# Create worktree without starting worker
-claude-orchestrator spawn refactor "Optimize queries" --no-start
+# Worker management
+claude-orchestrator spawn <name> <task>
+claude-orchestrator list
+claude-orchestrator status [worker]
+claude-orchestrator read <worker>
+claude-orchestrator send <worker> <msg>
+claude-orchestrator stop <worker>
+claude-orchestrator merge <worker>
 
-# Read last 100 lines of output
-claude-orchestrator read auth-api --lines 100
-
-# Run loop with faster polling
-claude-orchestrator loop --poll 2000
-
-# Start API server on custom port
-claude-orchestrator serve --port 8080 --host 0.0.0.0
+# Automation
+orchestrator-loop.sh                 # Start delivery loop
+orchestrator-status.sh               # Show loop + delivery status
 ```
 
 ---
 
-## HTTP API & Moltbot Integration
+## Configuration
 
-The orchestrator includes a full HTTP API, enabling control from:
-- **Moltbot** (Discord, Slack, Telegram, WhatsApp, etc.)
-- **Custom scripts**
-- **CI/CD pipelines**
-- **Mobile apps**
+### `config/orchestrator.yaml`
 
-### Starting the API Server
+```yaml
+version: 3
+mode: auto                          # auto | agent-teams | pipeline
 
-```bash
-claude-orchestrator serve --port 3001
+worktrees:
+  base_dir: ~/.worktrees
+  auto_cleanup: true
+
+pipeline:
+  enabled: true
+  gates_config: ~/.claude-orchestrator/config/gates.yaml
+
+loop:
+  poll_interval_seconds: 5
+  stall_timeout_minutes: 15
+  stall_action: notify              # notify | retry | skip
+
+agent_teams:
+  health_check_interval_seconds: 60
+  session_timeout_minutes: 30
+  auto_restart_crashed: false
+
+backlog:
+  enabled: true
+  auto_record_review: true
+  auto_record_qcode: true
 ```
 
-Output:
-```
-Claude Orchestrator API Server
-══════════════════════════════════════════════
-HTTP API:    http://localhost:3001/api
-WebSocket:   ws://localhost:3001/ws/status
-Health:      http://localhost:3001/api/health
+### `config/gates.yaml`
 
-Endpoints:
-  GET    /api/workers          - List all workers
-  GET    /api/workers/:id      - Get worker status
-  POST   /api/workers          - Spawn new worker
-  POST   /api/workers/:id/send - Send message
-  POST   /api/workers/:id/stop - Stop worker
-  POST   /api/workers/:id/merge - Merge PR
-  DELETE /api/workers/:id      - Cleanup worker
-  WS     /ws/status            - Real-time updates
-```
-
-### API Examples
-
-```bash
-# Health check
-curl http://localhost:3001/api/health
-# {"status":"healthy","version":"3.1.0","activeWorkers":2,"totalWorkers":5}
-
-# List workers
-curl http://localhost:3001/api/workers
-# [{"id":"auth-api","state":"WORKING",...}, ...]
-
-# Spawn a worker
-curl -X POST http://localhost:3001/api/workers \
-  -H "Content-Type: application/json" \
-  -d '{"name":"dark-mode","task":"Add theme toggle to settings page"}'
-
-# Send message to worker
-curl -X POST http://localhost:3001/api/workers/auth-api/send \
-  -H "Content-Type: application/json" \
-  -d '{"message":"Also add password reset functionality"}'
-
-# Stop a worker
-curl -X POST http://localhost:3001/api/workers/auth-api/stop
-
-# Merge PR
-curl -X POST http://localhost:3001/api/workers/auth-api/merge
-```
-
-### WebSocket Real-Time Updates
-
-Connect to `ws://localhost:3001/ws/status` for live events:
-
-```javascript
-const ws = new WebSocket('ws://localhost:3001/ws/status');
-
-ws.onmessage = (event) => {
-  const data = JSON.parse(event.data);
-  console.log(data);
-};
-
-// Events you'll receive:
-// {"type":"initial_state","workers":[...]}
-// {"type":"state_change","workerId":"auth-api","from":"WORKING","to":"PR_OPEN"}
-// {"type":"pr_detected","workerId":"auth-api","prNumber":42,"prUrl":"..."}
-// {"type":"pr_merged","workerId":"auth-api","prNumber":42}
-```
-
-### Moltbot Skill
-
-Control from Discord, Slack, or any Moltbot-supported platform:
-
-```bash
-# Install the skill
-cp -r ~/.claude-orchestrator/moltbot-skill ~/.clawdbot/skills/claude-orchestrator
-```
-
-Then in Discord/Slack:
-```
-You:  spawn a worker called auth-api to implement JWT authentication
-Bot:  Worker 'auth-api' spawned! Starting authentication implementation...
-
-You:  what's the status?
-Bot:  Workers:
-      💻 auth-api        WORKING
-      📬 dark-mode       PR_OPEN   PR #42
-
-You:  merge dark-mode
-Bot:  PR #42 merged successfully!
-```
+Controls which quality agents run, whether they block merges, and their trigger conditions. See the [Quality Agents](#quality-agents) section above.
 
 ---
 
@@ -449,173 +364,196 @@ Bot:  PR #42 merged successfully!
 ```
 ~/.claude-orchestrator/
 ├── bin/
-│   └── claude-orchestrator      # CLI entry point
-├── src/
-│   ├── cli.ts                   # Command definitions
-│   ├── orchestrator.ts          # Main orchestration loop
-│   ├── worker-manager.ts        # Worker process management
-│   ├── state-manager.ts         # State persistence
-│   ├── state-machine.ts         # Worker state transitions
-│   ├── server.ts                # HTTP/WebSocket API
-│   ├── github.ts                # GitHub CLI integration
-│   ├── jsonl-parser.ts          # Claude output parsing
-│   └── types.ts                 # TypeScript types
-├── commands/                    # Slash command definitions
-├── agents/                      # QA Guardian, DevOps, etc.
-├── moltbot-skill/              # Moltbot integration
-│   ├── SKILL.md                # Skill definition
-│   ├── scripts/
-│   │   └── orchestrator-bridge.sh
-│   └── references/
-│       ├── COMMANDS.md
-│       └── EXAMPLES.md
-└── scripts/                     # Legacy bash scripts
-
-~/.claude/workers/               # Worker state storage
-├── registry.json               # All workers registry
-└── <worker-id>/
-    ├── state.json              # Worker state
-    └── output.jsonl            # Worker output log
-
-~/.worktrees/<repo>/<worker>/   # Git worktrees
-└── WORKER_CLAUDE.md            # Worker instructions
+│   └── claude-orchestrator         # Node.js CLI entry point
+├── src/                            # TypeScript orchestrator
+│   ├── orchestrator.ts             # Main orchestration
+│   ├── worker-manager.ts           # Worker process management
+│   ├── state-manager.ts            # State persistence
+│   ├── mode.ts                     # Mode detection (pipeline/agent-teams)
+│   ├── types.ts                    # TypeScript types
+│   └── memory/                     # SQLite memory service
+├── pipeline/                       # Delivery pipeline scripts
+│   ├── run.sh                      # End-to-end pipeline runner
+│   ├── delivery-state.sh           # State machine persistence
+│   ├── pr-manager.sh               # PR create/merge via gh CLI
+│   ├── ci-monitor.sh               # CI polling
+│   ├── gate-runner.sh              # Quality gate orchestrator
+│   └── agent-registry.sh           # Agent metadata/prompt loader
+├── scripts/                        # Orchestrator shell scripts
+│   ├── orchestrator-loop.sh        # Background delivery loop
+│   ├── orchestrator.sh             # CLI wrapper for pipeline
+│   ├── orchestrator-status.sh      # Status display
+│   ├── mode-detect.sh              # Mode detection (bash)
+│   ├── auto-review.sh              # Heuristic code review
+│   ├── auto-qcode.sh               # Heuristic code quality
+│   ├── backlog.sh                  # Task backlog CLI
+│   ├── memory-*.sh                 # Memory read/write
+│   └── logging.sh                  # Structured logging
+├── config/                         # Configuration
+│   ├── orchestrator.yaml           # Global settings
+│   └── gates.yaml                  # Quality gate settings
+├── agents/                         # Agent definitions (YAML+MD)
+│   ├── qa-guardian.md              # QA specialist
+│   ├── devops-engineer.md          # Infrastructure reviewer
+│   ├── code-simplifier.md          # Complexity reducer
+│   └── verify-app.md               # Build/test verifier
+├── commands/                       # Claude Code slash commands
+│   ├── deliver.md                  # /deliver
+│   ├── review.md                   # /review
+│   ├── backlog.md                  # /backlog
+│   ├── status.md                   # /status
+│   └── ...
+├── templates/                      # Hook and workflow templates
+├── tests/                          # Test suites
+│   ├── test-pipeline.sh            # Pipeline tests (73 tests)
+│   └── test-memory.sh              # Memory tests (10 tests)
+├── install.sh                      # Installer
+├── uninstall.sh                    # Uninstaller
+└── version                         # Current version
 ```
+
+---
+
+## Migrating from v3.x
+
+v4.0 removes the iTerm2/AppleScript dependency and replaces the tab-based worker model with a delivery pipeline.
+
+### What Changed
+
+| v3.x | v4.0 |
+|------|------|
+| iTerm2 required | Any terminal (no iTerm dependency) |
+| Tab-based worker management | Background process workers |
+| Inline PR/CI/merge logic | Dedicated pipeline scripts |
+| Manual quality review | Automated quality gates |
+| `legacy` mode | `pipeline` mode (default) |
+| Suggestions printed to console | Suggestions persisted to backlog |
+
+### Migration Steps
+
+1. **Update**: `cd ~/.claude-orchestrator && git pull && bash install.sh --update`
+2. **Memory**: Existing 3-tier memory is preserved automatically
+3. **Backlog**: Existing SQLite backlog database is preserved
+4. **Hooks**: Re-run `/hooks install` in your projects to update git hooks
+5. **Config**: Review `config/orchestrator.yaml` for new v3 settings
+
+### Removed Scripts
+
+These iTerm-specific scripts were removed:
+- `window-utils.sh`, `start-worker.sh`, `start-all-workers.sh`
+- `worker-init.sh`, `worker-read.sh`, `worker-send.sh`, `worker-status.sh`
 
 ---
 
 ## Troubleshooting
 
-### Workers not starting
+### Delivery pipeline stuck
 
 ```bash
-# Check Claude CLI is installed
-which claude
+# Check pipeline state
+~/.claude-orchestrator/scripts/orchestrator.sh deliveries
 
-# Check Node.js version (needs 18+)
-node --version
+# Check specific delivery
+~/.claude-orchestrator/pipeline/delivery-state.sh get <task-id>
 
-# Check worktree was created
-ls ~/.worktrees/<repo-name>/
-
-# Check orchestrator logs
-cat ~/.claude/orchestrator.log
+# Resume a blocked delivery
+~/.claude-orchestrator/scripts/orchestrator.sh resume <task-id>
 ```
 
-### Worker stuck in WORKING state
+### CI not detected
 
 ```bash
-# Read its output
-claude-orchestrator read <worker-id>
+# Verify gh CLI is authenticated
+gh auth status
 
-# Nudge it
-claude-orchestrator send <worker-id> "Please continue with the task"
-
-# Or stop and restart
-claude-orchestrator stop <worker-id>
-claude-orchestrator spawn <worker-id> "<original-task>"
-```
-
-### PR not merging
-
-```bash
-# Check CI status
+# Check PR status manually
 gh pr checks <pr-number>
-
-# Check review status
-claude-orchestrator status <worker-id>
-
-# Force merge (bypasses auto-review)
-claude-orchestrator merge <worker-id>
 ```
 
-### Git worktree conflicts
+### Quality gates failing
 
 ```bash
-# List all worktrees
-git worktree list
+# Run gates manually
+~/.claude-orchestrator/pipeline/gate-runner.sh run-all <pr-number> <branch>
 
-# Remove a stuck worktree
-git worktree remove ~/.worktrees/<repo>/<worker> --force
-
-# Prune orphaned worktrees
-git worktree prune
+# Check gate config
+cat ~/.claude-orchestrator/config/gates.yaml
 ```
 
-### API server won't start
+### Backlog issues
 
 ```bash
-# Check if port is in use
-lsof -i :3001
+# Check backlog database
+~/.claude/scripts/backlog.sh stats
 
-# Kill existing process
-kill $(lsof -ti :3001)
-
-# Try a different port
-claude-orchestrator serve --port 3002
+# Search for specific items
+~/.claude/scripts/backlog.sh search "auth"
 ```
 
 ### Build errors
 
 ```bash
 cd ~/.claude-orchestrator
-npm run clean
-rm -rf node_modules
-npm install
-npm run build
+npm run clean && rm -rf node_modules
+npm install && npm run build
 ```
 
 ---
 
 ## Release Notes
 
-### v3.2 (Latest) — 2026-02-02
+### v4.0.0-alpha.2 (Current)
 
-**Persistent Memory System** — Claude-mem inspired memory integration!
+**Backlog Enforcement + Phase 3**
 
-- SQLite-based persistent memory for worker observations
-- Full-text search across session history
-- Automatic capture of worker lifecycle events (state changes, PR events, errors)
-- Memory API endpoints for programmatic access
-- `/mem-search` command for natural language queries
-- Session-based organization with cleanup utilities
+- `/review` and `/qcode` now always record findings to the Task Backlog database
+- Stall detection in the automation loop (configurable timeout + notify/retry/skip)
+- Agent Teams health monitoring (Claude process + tmux session checks)
+- Config v3 with new stall, agent-teams, and backlog sections
+- TypeScript mode detection updated (legacy -> pipeline)
 
-New endpoints:
-- `GET /api/memory/search?q=<query>` - Search observations
-- `GET /api/memory/sessions` - List sessions
-- `GET /api/memory/observations` - Get observations
-- `POST /api/memory/observations` - Add custom observation
+### v4.0.0-alpha.1
 
-### v3.1 — 2026-01-28
+**Delivery Pipeline + iTerm Removal**
 
-**Moltbot Integration** — Control from any messaging platform!
+- Delivery pipeline: PR creation, CI monitoring, quality gates, merge automation
+- Removed all iTerm2/AppleScript dependencies (7 scripts deleted)
+- New pipeline scripts: `run.sh`, `delivery-state.sh`, `pr-manager.sh`, `ci-monitor.sh`, `gate-runner.sh`, `agent-registry.sh`
+- Config-driven quality gates via `gates.yaml`
+- `/deliver` command for manual pipeline trigger
+- Mode detection: `pipeline` (default) and `agent-teams` (experimental)
 
-- HTTP API server (Fastify)
-- WebSocket real-time updates
-- Moltbot skill package
-- Bridge script for CLI-to-API
+### v3.5.0
 
-New command: `claude-orchestrator serve`
+- SQLite Tasks Backlog Database
+- Automated quality enforcement via git hooks
+- Heuristic quality scripts (auto-review.sh, auto-qcode.sh)
+- `/backlog` and `/hooks` commands
 
-### v3.0 — 2026-01-22
+### v3.4.0
 
-**Cross-Platform Support** — macOS, Linux, Windows!
+- CI fix + release (all PRs merged, build green)
+- 3-tier memory + bash 4+ requirement + migration
 
-- Node.js backend (replaced bash/AppleScript)
-- Background processes (no iTerm required)
-- JSONL streaming for real-time monitoring
-- State persistence across restarts
+### v3.2.0
 
-### v2.3 — 2026-01-13
+- Persistent memory system (SQLite, FTS5 search)
 
-**Memory System** — Persistent context across sessions
+### v3.1.0
 
-### v2.0 — 2026-01-13
+- HTTP API server + Moltbot integration
 
-**Autonomous Planner** — `/project` command for full automation
+### v3.0.0
 
-### v1.0 — 2026-01-11
+- Cross-platform Node.js rewrite (replaced bash/AppleScript)
 
-**Initial Release** — Git worktrees + iTerm automation
+### v2.0.0
+
+- Autonomous planner (`/project` command)
+
+### v1.0.0
+
+- Initial release (git worktrees + iTerm automation)
 
 ---
 
@@ -624,7 +562,7 @@ New command: `claude-orchestrator serve`
 1. Fork the repository
 2. Create a feature branch: `git checkout -b feature/amazing-thing`
 3. Make your changes
-4. Run checks: `npm run build && npm run test`
+4. Run checks: `bash tests/test-pipeline.sh && bash tests/test-memory.sh && npm run test:run`
 5. Submit a pull request
 
 ---

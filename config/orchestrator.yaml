@@ -1,14 +1,29 @@
-version: 2
-mode: auto  # auto | agent-teams | legacy
+version: 3
+mode: auto  # auto | agent-teams | pipeline
+
 worktrees:
   base_dir: ~/.worktrees
   auto_cleanup: true
+
 pipeline:
   enabled: true
   gates_config: ~/.claude-orchestrator/config/gates.yaml
+
 loop:
   poll_interval_seconds: 5
-  stall_timeout_minutes: 5
+  stall_timeout_minutes: 15
+  stall_action: notify  # notify | retry | skip
+
+agent_teams:
+  health_check_interval_seconds: 60
+  session_timeout_minutes: 30
+  auto_restart_crashed: false  # when true, attempts to restart crashed teammate sessions
+
+backlog:
+  enabled: true
+  auto_record_review: true   # always record /review findings to backlog
+  auto_record_qcode: true    # always record /qcode findings to backlog
+
 logging:
   level: info
   file: ~/.claude/orchestrator.log

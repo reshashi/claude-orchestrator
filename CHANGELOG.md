@@ -1,3 +1,76 @@
+## [4.0.0-alpha.2] - 2026-02-09
+
+### Added
+
+- **Backlog Enforcement** — `/review`, `/qcode`, auto-review.sh, auto-qcode.sh, gate-runner.sh,
+  and QA Guardian agent now **always** record suggestions and future work items to the Task Backlog
+  SQLite database. No more lost feedback. Opt-out via `--no-backlog`.
+
+- **Stall Detection** — Orchestrator loop monitors PR progress against a configurable timeout
+  (default 15 minutes). When a delivery stalls, the orchestrator takes action:
+  - `notify`: macOS notification + log entry
+  - `retry`: Reset to CI_RUNNING and re-process
+  - `skip`: Log and move on
+
+- **Agent Teams Health Monitoring** — When Agent Teams mode is active, the loop periodically
+  checks for running Claude processes and tmux sessions, alerting on crashed teammates.
+
+- **Config v3** (`config/orchestrator.yaml`) — New sections:
+  - `agent_teams`: health check interval, session timeout, auto-restart
+  - `backlog`: auto_record_review, auto_record_qcode
+  - `loop.stall_action`: notify | retry | skip
+
+### Changed
+
+- `auto-review.sh`: `ADD_TO_BACKLOG` defaults to `true` (was `false`); added `--no-backlog` opt-out
+- `auto-qcode.sh`: Added full backlog integration (records unfixed findings to backlog)
+- `src/mode.ts`: `'legacy'` mode renamed to `'pipeline'`; `isLegacyMode()` → `isPipelineMode()`
+- `src/types.ts`: Added `StallConfig`, `AgentTeamsConfig` interfaces
+
+---
+
+## [4.0.0-alpha.1] - 2026-02-09
+
+### Added
+
+- **Delivery Pipeline** — Automated PR → CI → quality gates → merge lifecycle:
+  - `pipeline/run.sh`: End-to-end pipeline runner
+  - `pipeline/delivery-state.sh`: JSON-based state machine with transition validation
+  - `pipeline/pr-manager.sh`: PR create/merge via `gh` CLI
+  - `pipeline/ci-monitor.sh`: CI status polling with configurable timeout
+  - `pipeline/gate-runner.sh`: Quality gate orchestrator with blocking/non-blocking support
+  - `pipeline/agent-registry.sh`: Agent metadata and prompt extraction
+
+- **Config-Driven Quality Gates** (`config/gates.yaml`):
+  - qa-guardian (blocking, always), security (blocking, always)
+  - devops-engineer (non-blocking, file-match trigger)
+  - code-simplifier (non-blocking, 50+ lines trigger)
+
+- **`/deliver` Command** — Manual pipeline trigger from Claude Code
+
+- **Mode Detection** — `pipeline` (default) and `agent-teams` (experimental via
+  `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`)
+
+### Removed
+
+- **iTerm2/AppleScript dependency** — All 7 iTerm-specific scripts deleted:
+  `window-utils.sh`, `start-worker.sh`, `start-all-workers.sh`, `worker-init.sh`,
+  `worker-read.sh`, `worker-send.sh`, `worker-status.sh`
+- macOS-only check and iTerm2 check from `install.sh`
+- `is_legacy_mode()` function from `mode-detect.sh`
+
+### Changed
+
+- `orchestrator-loop.sh`: Rewritten from 782-line iTerm tab-polling loop to ~306-line
+  delivery-pipeline PR-watching loop
+- `orchestrator.sh`: Rewritten from iTerm AppleScript functions to thin pipeline wrapper
+- `orchestrator-status.sh`: Added delivery pipeline status section
+- `install.sh`: Installs pipeline scripts and config; removed platform checks
+- `commands/status.md`: Added delivery pipeline table
+- Default mode: `legacy` → `pipeline`
+
+---
+
 ## [3.5.0] - 2026-02-06
 
 ### Added
