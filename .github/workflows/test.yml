@@ -20,11 +20,6 @@ jobs:
           echo "/opt/homebrew/bin" >> $GITHUB_PATH
           echo "Installed: $(/opt/homebrew/bin/bash --version | head -1)"
 
-      - name: Install iTerm2 (mock check)
-        run: |
-          # Create mock iTerm2 directory for CI
-          sudo mkdir -p /Applications/iTerm.app
-
       - name: Test local install
         run: |
           echo "Using bash: $(which bash) - $(bash --version | head -1)"
@@ -57,6 +52,17 @@ jobs:
           test -f ~/.claude/orchestrator/user/user-preferences.json
           test -f ~/.claude/orchestrator/user/user-standards.json
 
+          # Verify pipeline installation (v4.0)
+          test -d ~/.claude-orchestrator/pipeline
+          test -f ~/.claude-orchestrator/pipeline/run.sh
+          test -f ~/.claude-orchestrator/pipeline/delivery-state.sh
+          test -f ~/.claude-orchestrator/pipeline/pr-manager.sh
+          test -f ~/.claude-orchestrator/pipeline/ci-monitor.sh
+          test -f ~/.claude-orchestrator/pipeline/gate-runner.sh
+          test -f ~/.claude-orchestrator/pipeline/agent-registry.sh
+          test -d ~/.claude-orchestrator/config
+          test -f ~/.claude-orchestrator/config/gates.yaml
+
           echo "All files installed correctly"
 
       - name: Test uninstall
@@ -85,14 +91,37 @@ jobs:
       - name: Run memory system tests
         run: ./tests/test-memory.sh
 
+  test-pipeline:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies (bash 4+, jq)
+        run: |
+          brew install bash jq
+          echo "/opt/homebrew/bin" >> $GITHUB_PATH
+
+      - name: Make scripts executable
+        run: chmod +x pipeline/*.sh tests/*.sh scripts/*.sh
+
+      - name: Run pipeline tests
+        run: ./tests/test-pipeline.sh
+
   shellcheck:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Run ShellCheck
+      - name: Run ShellCheck on scripts
         uses: ludeeus/action-shellcheck@master
         with:
           scandir: './scripts'
+          severity: warning
+
+      - name: Run ShellCheck on pipeline
+        uses: ludeeus/action-shellcheck@master
+        with:
+          scandir: './pipeline'
           severity: warning

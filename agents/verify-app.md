@@ -2,6 +2,9 @@
 name: verify-app
 description: Comprehensive verification of changes before merge - tests, types, lint, and manual checks
 model: claude-sonnet-4-5-20250929
+trigger: always
+blocking: true
+gate_output_pattern: "RESULT:.*(PASS|FAIL)"
 ---
 
 # Verify App Agent
@@ -99,6 +102,21 @@ If any check fails:
 2. Provide the exact error message
 3. Suggest how to fix it
 4. Do NOT attempt to fix it yourself (that's the worker's job)
+
+## Review Mandate
+
+When invoked as a quality gate, focus on:
+
+1. **Build integrity**: Does the project build without errors?
+2. **Type safety**: Does type-checking pass?
+3. **Lint compliance**: No lint errors in changed files.
+4. **Test suite**: All tests pass, no regressions.
+5. **Security basics**: No secrets, no unsafe patterns in changed code.
+
+End your review with exactly one of:
+- `RESULT: PASS` — All verification checks pass
+- `RESULT: FAIL` — Build, type, lint, or test failures
+- `RESULT: CONDITIONAL PASS` — Minor issues that don't block merge
 
 ## When Called
 

@@ -1,90 +1,51 @@
 #!/bin/bash
-# Start Claude as the Orchestrator in the current iTerm window
+# Start Claude as the Orchestrator for the current project
 # Usage: claude-orchestrator [repo-name]
 #
 # This script:
-# 1. Captures the current iTerm window ID for window-scoped tab management
+# 1. Detects the current project
 # 2. Starts Claude with orchestrator context pre-loaded
-# 3. Stores window ID so all spawned workers stay in this window
+# 3. The delivery pipeline loop runs independently (orchestrator-loop.sh)
 
 set -e
 
 REPO_NAME="${1:-$(basename "$(pwd)")}"
-_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-STATE_DIR="$HOME/.claude"
-WINDOW_ID_FILE="$STATE_DIR/orchestrator-window-id"
-
-mkdir -p "$STATE_DIR"
-
-# Capture the current iTerm window ID
-capture_window_id() {
-    local WINDOW_ID
-    WINDOW_ID=$(osascript << 'APPLESCRIPT'
-tell application "iTerm"
-    if (count of windows) > 0 then
-        return id of current window
-    else
-        -- Create a new window if none exists
-        create window with default profile
-        return id of current window
-    end if
-end tell
-APPLESCRIPT
-)
-    echo "$WINDOW_ID"
-}
-
-# Get the window ID
-WINDOW_ID=$(capture_window_id)
-
-if [ -z "$WINDOW_ID" ]; then
-    echo "Error: Could not get iTerm window ID"
-    exit 1
-fi
-
-# Store window ID for other scripts to use
-echo "$WINDOW_ID" > "$WINDOW_ID_FILE"
-export ORCHESTRATOR_WINDOW_ID="$WINDOW_ID"
 
 echo "╔════════════════════════════════════════════════════════════╗"
-echo "║           Claude Orchestrator v2.3                         ║"
+echo "║           Claude Orchestrator v4.0                         ║"
 echo "╠════════════════════════════════════════════════════════════╣"
-echo "║  Window ID: $WINDOW_ID (all workers will spawn here)       "
-echo "║  Project:   $REPO_NAME                                     "
+echo "║  Project:   $REPO_NAME"
 echo "║                                                            ║"
 echo "║  Commands:                                                 ║"
 echo "║    /project \"description\"  - Full autonomous execution    ║"
-echo "║    /spawn name \"task\"      - Create worker in this window ║"
-echo "║    /status                  - Check all workers            ║"
+echo "║    /spawn name \"task\"      - Create worker in worktree    ║"
+echo "║    /deliver branch          - Push branch through pipeline ║"
+echo "║    /status                  - Check all workers + pipeline ║"
 echo "║    /merge name              - Merge completed worker       ║"
 echo "╚════════════════════════════════════════════════════════════╝"
 echo ""
 
-# Create the orchestrator prompt
 ORCHESTRATOR_PROMPT="You are the ORCHESTRATOR for the '$REPO_NAME' project.
 
 Your role:
-1. You are Tab 1 - the Planner and Orchestrator
-2. All worker tabs will be created in THIS window (ID: $WINDOW_ID)
-3. Use /project for autonomous execution or /spawn for manual worker creation
-4. Workers you spawn will appear as new tabs in this window only
+1. Plan and coordinate work across multiple Claude worker sessions
+2. Workers run in separate git worktrees
+3. The delivery pipeline (orchestrator-loop.sh) handles CI, review, and merge
 
 Available commands:
 - /project \"description\" - Generate PRD, spawn workers, monitor, review, deliver
-- /spawn <name> \"task\" - Create a worker in a new tab (same window)
+- /spawn <name> \"task\" - Create a worker in a new worktree
+- /deliver <branch> - Push a branch through the delivery pipeline
 - /plan \"description\" - Create work breakdown without spawning
-- /status - Check status of all workers
+- /status - Check status of all workers and deliveries
 - /merge <name> - Merge completed worker and cleanup
 - /review [branch] - Run QA Guardian review
-- /deploy - Run DevOps validation
 
-Window Management:
-- This window is dedicated to this project
-- You may have other windows for other projects
-- Each window has its own orchestrator managing only its tabs
+Delivery Pipeline:
+- orchestrator-start  - Start background delivery loop
+- orchestrator-stop   - Stop the loop
+- orchestrator-status - Check loop + delivery status
 
 Start by asking what the user wants to build, or wait for a /project command."
 
-# Start Claude with the orchestrator prompt
-# Use --print-prompt to prepend our context
 exec claude --prompt "$ORCHESTRATOR_PROMPT"

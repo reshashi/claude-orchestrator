@@ -1,6 +1,6 @@
 ---
-description: Check status of all active worktrees and Claude sessions
-allowed-tools: Bash(git:*), Bash(cat:*), Bash(ls:*)
+description: Check status of all active worktrees, delivery pipeline, and Claude sessions
+allowed-tools: Bash(git:*), Bash(cat:*), Bash(ls:*), Bash(~/.claude-orchestrator/pipeline/*:*), Bash(~/.claude/scripts/orchestrator-status.sh:*)
 ---
 
 # Status: Active Sessions Overview
@@ -39,7 +39,24 @@ allowed-tools: Bash(git:*), Bash(cat:*), Bash(ls:*)
    - Sessions that might be stuck (no recent changes)
    - Potential conflicts (multiple sessions touched similar files)
 
-5. Suggest next actions:
+5. Show delivery pipeline status:
+   - Run: `~/.claude-orchestrator/pipeline/delivery-state.sh list`
+   - Present active deliveries in a table:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ Delivery Pipeline                                                │
+├─────────────────┬────────┬──────────────┬───────────────────────┤
+│ Branch          │ PR     │ State        │ Last Update           │
+├─────────────────┼────────┼──────────────┼───────────────────────┤
+│ feat/auth       │ #42    │ REVIEWING    │ 2 min ago             │
+│ fix/login       │ #43    │ CI_RUNNING   │ 5 min ago             │
+│ feat/dashboard  │ #44    │ MERGED       │ 1 hour ago            │
+└─────────────────┴────────┴──────────────┴───────────────────────┘
+```
+
+6. Suggest next actions:
+   - `/deliver [branch]` to push a branch through the pipeline
    - `/merge [session]` for completed work
    - Check on sessions with no activity
    - Remove stale worktrees with `wt remove [repo] [session]`

@@ -1,0 +1,14 @@
+version: 2
+mode: auto  # auto | agent-teams | legacy
+worktrees:
+  base_dir: ~/.worktrees
+  auto_cleanup: true
+pipeline:
+  enabled: true
+  gates_config: ~/.claude-orchestrator/config/gates.yaml
+loop:
+  poll_interval_seconds: 5
+  stall_timeout_minutes: 5
+logging:
+  level: info
+  file: ~/.claude/orchestrator.log

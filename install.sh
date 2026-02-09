@@ -162,23 +162,6 @@ check_prerequisites() {
     # Bash version check (already verified at script start, but show success message)
     success "Bash ${BASH_VERSION} (4.0+ required: OK)"
 
-    # macOS check (required)
-    if [[ "$(uname)" != "Darwin" ]]; then
-        error "This tool is macOS-only (requires iTerm2 + AppleScript)"
-        error "For other platforms, see: https://github.com/$REPO#other-platforms"
-        exit 1
-    fi
-    success "macOS detected"
-
-    # iTerm2 check (required)
-    if [[ ! -d "/Applications/iTerm.app" ]]; then
-        error "iTerm2 not found at /Applications/iTerm.app"
-        error "Please install from: https://iterm2.com"
-        has_errors=true
-    else
-        success "iTerm2 found"
-    fi
-
     # Git check (required)
     if ! command -v git &> /dev/null; then
         error "git not found. Please install git."
@@ -245,14 +228,13 @@ uninstall() {
     # Remove symlinks (but not the directories themselves)
     info "Removing symlinks..."
     for script in orchestrator.sh orchestrator-loop.sh orchestrator-stop.sh orchestrator-status.sh \
-                  start-worker.sh start-all-workers.sh worker-init.sh worker-read.sh \
-                  worker-send.sh worker-status.sh wt.sh; do
+                  wt.sh; do
         if [[ -L "$SCRIPTS_DIR/$script" ]]; then
             rm "$SCRIPTS_DIR/$script"
         fi
     done
 
-    # Remove install directory
+    # Remove install directory (includes pipeline/ and config/)
     if [[ -d "$INSTALL_DIR" ]]; then
         rm -rf "$INSTALL_DIR"
         success "Removed $INSTALL_DIR"
@@ -454,6 +436,31 @@ install() {
     chmod +x "$SCRIPTS_DIR"/*.sh 2>/dev/null || true
     success "Scripts installed to $SCRIPTS_DIR"
 
+    # Install pipeline scripts (copy to install dir)
+    info "Installing pipeline scripts..."
+    mkdir -p "$INSTALL_DIR/pipeline"
+    for script in "$source_dir/pipeline/"*.sh; do
+        [[ -f "$script" ]] || continue
+        cp "$script" "$INSTALL_DIR/pipeline/"
+    done
+    chmod +x "$INSTALL_DIR/pipeline/"*.sh 2>/dev/null || true
+    success "Pipeline scripts installed to $INSTALL_DIR/pipeline"
+
+    # Install config (copy, preserve user customizations)
+    info "Installing config..."
+    mkdir -p "$INSTALL_DIR/config"
+    for cfg in "$source_dir/config/"*; do
+        [[ -f "$cfg" ]] || continue
+        local cfg_name
+        cfg_name=$(basename "$cfg")
+        if [[ ! -f "$INSTALL_DIR/config/$cfg_name" ]] || [[ "$FORCE" == true ]]; then
+            cp "$cfg" "$INSTALL_DIR/config/$cfg_name"
+        else
+            info "  Skipping $cfg_name (already exists, use -y to overwrite)"
+        fi
+    done
+    success "Config installed to $INSTALL_DIR/config"
+
     # Copy hook templates
     info "Installing git hook templates..."
     mkdir -p "$INSTALL_DIR/templates/hooks"
@@ -551,15 +558,15 @@ print_success() {
     echo ""
     echo "Quick commands:"
     echo "  /project \"desc\"        Full autonomous project (v2.0)"
-    echo "  /spawn <name> \"task\"   Create worker in new iTerm tab"
-    echo "  /status                Check all worktrees and workers"
-    echo "  /workers list          List active worker tabs"
+    echo "  /spawn <name> \"task\"   Create worker in new worktree"
+    echo "  /status                Check all worktrees and deliveries"
+    echo "  /deliver <branch>      Push branch through delivery pipeline"
     echo "  /merge <name>          Merge worker branch and cleanup"
     echo ""
-    echo "Fully automated mode:"
-    echo "  orchestrator-start     Start background orchestrator loop"
+    echo "Delivery pipeline:"
+    echo "  orchestrator-start     Start background delivery loop"
     echo "  orchestrator-stop      Stop the loop"
-    echo "  orchestrator-status    Check loop status"
+    echo "  orchestrator-status    Check loop + delivery status"
     echo ""
     echo "Documentation: https://github.com/$REPO"
 }

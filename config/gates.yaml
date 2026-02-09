@@ -1,0 +1,31 @@
+gates:
+  qa-guardian:
+    enabled: true
+    blocking: true
+    trigger: always
+  security:
+    enabled: true
+    blocking: true
+    trigger: always
+  devops-engineer:
+    enabled: true
+    blocking: false
+    trigger:
+      files_match:
+        - ".github/**"
+        - "Dockerfile*"
+        - "docker-compose*"
+        - "vercel.json"
+        - "supabase/**"
+        - ".env*"
+  code-simplifier:
+    enabled: true
+    blocking: false
+    trigger:
+      min_lines_changed: 50
+settings:
+  ci_poll_interval_seconds: 30
+  ci_timeout_minutes: 30
+  merge_method: squash
+  delete_branch_on_merge: true
+  auto_merge: true
