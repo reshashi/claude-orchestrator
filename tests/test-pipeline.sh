@@ -471,10 +471,10 @@ echo -e "${YELLOW}=== Version ===${NC}"
 # ============================================================
 
 version=$(cat "$SCRIPT_DIR/../version")
-assert_eq "4.0.0-alpha.1" "$version" "version file is 4.0.0-alpha.1"
+assert_eq "4.0.0-alpha.2" "$version" "version file is 4.0.0-alpha.2"
 
 pkg_version=$(grep '"version"' "$SCRIPT_DIR/../package.json" | head -1 | sed 's/.*"version": "//; s/".*//')
-assert_eq "4.0.0-alpha.1" "$pkg_version" "package.json version is 4.0.0-alpha.1"
+assert_eq "4.0.0-alpha.2" "$pkg_version" "package.json version is 4.0.0-alpha.2"
 
 # ============================================================
 echo ""
