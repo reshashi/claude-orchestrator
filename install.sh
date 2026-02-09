@@ -234,13 +234,7 @@ uninstall() {
         fi
     done
 
-    # Remove pipeline symlinks
-    if [[ -d "$HOME/.claude-orchestrator/pipeline" ]]; then
-        rm -rf "$HOME/.claude-orchestrator/pipeline"
-        success "Removed pipeline symlinks"
-    fi
-
-    # Remove install directory
+    # Remove install directory (includes pipeline/ and config/)
     if [[ -d "$INSTALL_DIR" ]]; then
         rm -rf "$INSTALL_DIR"
         success "Removed $INSTALL_DIR"
@@ -442,34 +436,30 @@ install() {
     chmod +x "$SCRIPTS_DIR"/*.sh 2>/dev/null || true
     success "Scripts installed to $SCRIPTS_DIR"
 
-    # Install pipeline scripts (symlinks)
+    # Install pipeline scripts (copy to install dir)
     info "Installing pipeline scripts..."
     mkdir -p "$INSTALL_DIR/pipeline"
-    mkdir -p "$HOME/.claude-orchestrator/pipeline"
     for script in "$source_dir/pipeline/"*.sh; do
         [[ -f "$script" ]] || continue
-        local pipeline_name
-        pipeline_name=$(basename "$script")
-        rm -f "$HOME/.claude-orchestrator/pipeline/$pipeline_name"
-        ln -sf "$INSTALL_DIR/pipeline/$pipeline_name" "$HOME/.claude-orchestrator/pipeline/$pipeline_name"
+        cp "$script" "$INSTALL_DIR/pipeline/"
     done
-    chmod +x "$HOME/.claude-orchestrator/pipeline/"*.sh 2>/dev/null || true
-    success "Pipeline scripts installed to ~/.claude-orchestrator/pipeline"
+    chmod +x "$INSTALL_DIR/pipeline/"*.sh 2>/dev/null || true
+    success "Pipeline scripts installed to $INSTALL_DIR/pipeline"
 
     # Install config (copy, preserve user customizations)
     info "Installing config..."
-    mkdir -p "$HOME/.claude-orchestrator/config"
+    mkdir -p "$INSTALL_DIR/config"
     for cfg in "$source_dir/config/"*; do
         [[ -f "$cfg" ]] || continue
         local cfg_name
         cfg_name=$(basename "$cfg")
-        if [[ ! -f "$HOME/.claude-orchestrator/config/$cfg_name" ]] || [[ "$FORCE" == true ]]; then
-            cp "$cfg" "$HOME/.claude-orchestrator/config/$cfg_name"
+        if [[ ! -f "$INSTALL_DIR/config/$cfg_name" ]] || [[ "$FORCE" == true ]]; then
+            cp "$cfg" "$INSTALL_DIR/config/$cfg_name"
         else
             info "  Skipping $cfg_name (already exists, use -y to overwrite)"
         fi
     done
-    success "Config installed to ~/.claude-orchestrator/config"
+    success "Config installed to $INSTALL_DIR/config"
 
     # Copy hook templates
     info "Installing git hook templates..."
