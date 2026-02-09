@@ -85,14 +85,37 @@ jobs:
       - name: Run memory system tests
         run: ./tests/test-memory.sh
 
+  test-pipeline:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies (bash 4+, jq)
+        run: |
+          brew install bash jq
+          echo "/opt/homebrew/bin" >> $GITHUB_PATH
+
+      - name: Make scripts executable
+        run: chmod +x pipeline/*.sh tests/*.sh scripts/*.sh
+
+      - name: Run pipeline tests
+        run: ./tests/test-pipeline.sh
+
   shellcheck:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Run ShellCheck
+      - name: Run ShellCheck on scripts
         uses: ludeeus/action-shellcheck@master
         with:
           scandir: './scripts'
+          severity: warning
+
+      - name: Run ShellCheck on pipeline
+        uses: ludeeus/action-shellcheck@master
+        with:
+          scandir: './pipeline'
           severity: warning

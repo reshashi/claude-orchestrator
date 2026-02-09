@@ -159,6 +159,27 @@ export interface MemoryConfig {
   dbPath?: string;               // Optional custom database path
 }
 
+// Delivery pipeline states (v4.0)
+export type DeliveryState =
+  | 'WORKING'
+  | 'PR_CREATING'
+  | 'CI_RUNNING'
+  | 'REVIEWING'
+  | 'APPROVED'
+  | 'MERGING'
+  | 'MERGED'
+  | 'BLOCKED';
+
+export interface DeliveryEntry {
+  taskId: string;
+  branch: string;
+  prNumber: number | null;
+  state: DeliveryState;
+  gates: Record<string, 'pending' | 'passed' | 'failed'>;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // Logger interface
 export interface Logger {
   info(message: string, meta?: Record<string, unknown>): void;
