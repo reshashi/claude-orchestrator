@@ -40,12 +40,16 @@ _gate_config() {
 
     # Extract the block for this gate
     local block
-    # Use sed to extract the agent's config block, then parse it
-    local block
-    block=$(sed -n "/^  ${agent_name}:/,/^  [a-z]/p" "$gates_file" | head -n -1)
+    # Use sed to extract the agent's config block, then remove last line (next section header)
+    block=$(sed -n "/^  ${agent_name}:/,/^  [a-z]/p" "$gates_file" | sed '$d')
 
     if [[ -z "$block" ]]; then
-        # Try without trailing block delimiter (last entry in file)
+        # Last entry: extract from agent to next top-level key (non-indented) or EOF
+        block=$(sed -n "/^  ${agent_name}:/,/^[a-z]/p" "$gates_file" | sed '$d')
+    fi
+
+    if [[ -z "$block" ]]; then
+        # Truly the last entry in file with nothing after it
         block=$(sed -n "/^  ${agent_name}:/,\$p" "$gates_file")
     fi
 

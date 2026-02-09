@@ -3,7 +3,7 @@ gates:
     enabled: true
     blocking: true
     trigger: always
-  security:
+  verify-app:
     enabled: true
     blocking: true
     trigger: always

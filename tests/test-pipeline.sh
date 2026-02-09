@@ -467,6 +467,19 @@ fi
 
 # ============================================================
 echo ""
+echo -e "${YELLOW}=== Gate-Agent Consistency ===${NC}"
+# ============================================================
+
+# Every gate in gates.yaml must have a matching agent .md file
+gate_names=$(sed -n '/^gates:/,/^[a-z]/p' "$CONFIG_DIR/gates.yaml" | grep '^  [a-z]' | sed 's/:.*//' | sed 's/^ *//')
+while IFS= read -r gate; do
+    [[ -z "$gate" ]] && continue
+    output=$(bash "$PIPELINE_DIR/agent-registry.sh" metadata "$gate" 2>&1)
+    assert_ok $? "Gate '$gate' has matching agent file"
+done <<< "$gate_names"
+
+# ============================================================
+echo ""
 echo -e "${YELLOW}=== Version ===${NC}"
 # ============================================================
 

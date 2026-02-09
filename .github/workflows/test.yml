@@ -108,6 +108,23 @@ jobs:
       - name: Run pipeline tests
         run: ./tests/test-pipeline.sh
 
+  test-integration:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies (bash 4+, jq)
+        run: |
+          brew install bash jq
+          echo "/opt/homebrew/bin" >> $GITHUB_PATH
+
+      - name: Make scripts executable
+        run: chmod +x pipeline/*.sh tests/*.sh scripts/*.sh
+
+      - name: Run integration tests
+        run: ./tests/test-integration.sh
+
   shellcheck:
     runs-on: ubuntu-latest
     steps:
@@ -124,4 +141,10 @@ jobs:
         uses: ludeeus/action-shellcheck@master
         with:
           scandir: './pipeline'
+          severity: warning
+
+      - name: Run ShellCheck on tests
+        uses: ludeeus/action-shellcheck@master
+        with:
+          scandir: './tests'
           severity: warning
