@@ -14,10 +14,11 @@ TESTS_RUN=0
 TESTS_PASSED=0
 
 # Test directory (use temp dir to avoid polluting real memory)
-export CLAUDE_MEMORY_DIR=$(mktemp -d)
+CLAUDE_MEMORY_DIR=$(mktemp -d)
+export CLAUDE_MEMORY_DIR
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/scripts"
 
-trap "rm -rf $CLAUDE_MEMORY_DIR" EXIT
+trap 'rm -rf "$CLAUDE_MEMORY_DIR"' EXIT
 
 # Helper functions
 pass() {
@@ -137,8 +138,9 @@ test_read_repos() {
 
 test_session_summary_creates_file() {
     # Create a mock git repo for the summary script
-    local mock_repo=$(mktemp -d)
-    cd "$mock_repo"
+    local mock_repo
+    mock_repo=$(mktemp -d)
+    cd "$mock_repo" || return
     git init -q
     git config user.email "test@test.com"
     git config user.name "Test"
@@ -154,7 +156,7 @@ test_session_summary_creates_file() {
         fail "session-summary.sh" "summary file created" "no file found"
     fi
 
-    cd - >/dev/null
+    cd - >/dev/null || return
     rm -rf "$mock_repo"
 }
 
