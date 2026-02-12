@@ -1,6 +1,6 @@
 {
   "name": "claude-orchestrator",
-  "version": "4.0.0-alpha.4",
+  "version": "4.1.0",
   "description": "Automated delivery pipeline for Claude Code — PR creation, CI monitoring, quality gates, merge automation",
   "type": "module",
   "main": "dist/index.js",
