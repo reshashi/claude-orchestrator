@@ -538,7 +538,6 @@ assert_contains "$output" "Usage:" "project-state.sh shows usage on no args"
     assert_contains "$cleanup_output" "Cleaned up" "project_cleanup confirms cleanup"
 
     # Verify cleanup removed project
-    list_after=$(project_list)
     get_after=$(project_get "test-proj-1" 2>&1 || true)
     assert_contains "$get_after" "No project found" "project_get returns error after cleanup"
 )
