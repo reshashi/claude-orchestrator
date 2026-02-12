@@ -480,14 +480,167 @@ done <<< "$gate_names"
 
 # ============================================================
 echo ""
+echo -e "${YELLOW}=== Project State ===${NC}"
+# ============================================================
+
+SCRIPTS_DIR="$SCRIPT_DIR/../scripts"
+
+# Test that project-state.sh is parseable
+bash -n "$SCRIPTS_DIR/project-state.sh"
+assert_ok $? "project-state.sh has valid syntax"
+
+# Test usage output
+output=$(bash "$SCRIPTS_DIR/project-state.sh" 2>&1 || true)
+assert_contains "$output" "Usage:" "project-state.sh shows usage on no args"
+
+# Test project init/get/list/cleanup in isolated temp dir
+(
+    export PROJECT_STATE_BASE="$TEMP_DIR/projects"
+    export LOCK_BASE="$TEMP_DIR/locks"
+    source "$SCRIPTS_DIR/project-state.sh"
+
+    # Init
+    init_output=$(project_init "test-proj-1")
+    assert_ok $? "project_init creates project"
+    assert_contains "$init_output" "state.json" "project_init returns state file path"
+
+    # Init second project
+    project_init "test-proj-2" >/dev/null
+    assert_ok $? "project_init creates second project"
+
+    # Get
+    get_output=$(project_get "test-proj-1")
+    assert_ok $? "project_get reads project"
+    assert_contains "$get_output" '"project_id": "test-proj-1"' "project_get returns correct ID"
+
+    # Update
+    update_output=$(project_update "test-proj-1" '.status = "implementing"')
+    assert_ok $? "project_update works"
+    assert_contains "$update_output" '"status": "implementing"' "project_update applies jq filter"
+
+    # List
+    list_output=$(project_list)
+    assert_ok $? "project_list works"
+    assert_contains "$list_output" "test-proj-1" "project_list includes first project"
+    assert_contains "$list_output" "test-proj-2" "project_list includes second project"
+
+    # List with filter
+    list_filtered=$(project_list --status "implementing")
+    assert_contains "$list_filtered" "test-proj-1" "project_list --status filters correctly"
+
+    # Duplicate init fails
+    dup_output=$(project_init "test-proj-1" 2>&1 || true)
+    assert_contains "$dup_output" "already exists" "project_init rejects duplicate"
+
+    # Cleanup
+    cleanup_output=$(project_cleanup "test-proj-1")
+    assert_ok $? "project_cleanup works"
+    assert_contains "$cleanup_output" "Cleaned up" "project_cleanup confirms cleanup"
+
+    # Verify cleanup removed project
+    list_after=$(project_list)
+    get_after=$(project_get "test-proj-1" 2>&1 || true)
+    assert_contains "$get_after" "No project found" "project_get returns error after cleanup"
+)
+
+# ============================================================
+echo ""
+echo -e "${YELLOW}=== Merge Queue ===${NC}"
+# ============================================================
+
+# Test that merge-queue.sh is parseable
+bash -n "$SCRIPTS_DIR/merge-queue.sh"
+assert_ok $? "merge-queue.sh has valid syntax"
+
+# Test usage output
+output=$(bash "$SCRIPTS_DIR/merge-queue.sh" 2>&1 || true)
+assert_contains "$output" "Usage:" "merge-queue.sh shows usage on no args"
+
+# Verify key functions exist
+(
+    export LOCK_BASE="$TEMP_DIR/mq-locks"
+    # Need to stub out pipeline sources to avoid errors in test env
+    _require_gh() { return 0; }
+    ci_status() { echo "passed"; }
+    pr_merge() { return 0; }
+    pr_update_branch() { echo '{"message":"Updating"}'; }
+    export -f _require_gh ci_status pr_merge pr_update_branch
+    source "$SCRIPTS_DIR/merge-queue.sh" 2>/dev/null || true
+    declare -f merge_queue_process >/dev/null 2>&1
+    assert_ok $? "merge_queue_process function exists"
+    declare -f merge_queue_status >/dev/null 2>&1
+    assert_ok $? "merge_queue_status function exists"
+    declare -f _acquire_merge_lock >/dev/null 2>&1
+    assert_ok $? "_acquire_merge_lock function exists"
+    declare -f _release_merge_lock >/dev/null 2>&1
+    assert_ok $? "_release_merge_lock function exists"
+)
+
+# ============================================================
+echo ""
+echo -e "${YELLOW}=== Merge Queue Config ===${NC}"
+# ============================================================
+
+output=$(grep 'merge_queue:' "$CONFIG_DIR/orchestrator.yaml")
+assert_ok $? "orchestrator.yaml has merge_queue section"
+
+output=$(grep 'lock_timeout_seconds:' "$CONFIG_DIR/orchestrator.yaml")
+assert_ok $? "orchestrator.yaml has lock_timeout_seconds"
+
+output=$(grep 'auto_rebase:' "$CONFIG_DIR/orchestrator.yaml")
+assert_ok $? "orchestrator.yaml has auto_rebase"
+
+output=$(grep 'ci_wait_after_rebase_seconds:' "$CONFIG_DIR/orchestrator.yaml")
+assert_ok $? "orchestrator.yaml has ci_wait_after_rebase_seconds"
+
+output=$(grep 'conflict_action:' "$CONFIG_DIR/orchestrator.yaml")
+assert_ok $? "orchestrator.yaml has conflict_action"
+
+# ============================================================
+echo ""
+echo -e "${YELLOW}=== PR Manager Update Branch ===${NC}"
+# ============================================================
+
+# Verify pr_update_branch function exists in pr-manager.sh
+output=$(grep 'pr_update_branch()' "$PIPELINE_DIR/pr-manager.sh")
+assert_ok $? "pr-manager.sh has pr_update_branch function"
+
+output=$(grep 'update-branch' "$PIPELINE_DIR/pr-manager.sh")
+assert_ok $? "pr-manager.sh CLI dispatches update-branch"
+
+# ============================================================
+echo ""
+echo -e "${YELLOW}=== Orchestrator Loop Multi-Project ===${NC}"
+# ============================================================
+
+output=$(grep 'any_project_active()' "$SCRIPTS_DIR/orchestrator-loop.sh")
+assert_ok $? "orchestrator-loop.sh has any_project_active function"
+
+output=$(grep '_check_project_workers_complete()' "$SCRIPTS_DIR/orchestrator-loop.sh")
+assert_ok $? "orchestrator-loop.sh has _check_project_workers_complete function"
+
+output=$(grep 'merge_queue_process' "$SCRIPTS_DIR/orchestrator-loop.sh")
+assert_ok $? "orchestrator-loop.sh references merge_queue_process"
+
+output=$(grep 'project_migrate_legacy' "$SCRIPTS_DIR/orchestrator-loop.sh")
+assert_ok $? "orchestrator-loop.sh has legacy migration"
+
+output=$(grep 'project-state.sh' "$SCRIPTS_DIR/orchestrator-loop.sh")
+assert_ok $? "orchestrator-loop.sh sources project-state.sh"
+
+output=$(grep 'merge-queue.sh' "$SCRIPTS_DIR/orchestrator-loop.sh")
+assert_ok $? "orchestrator-loop.sh sources merge-queue.sh"
+
+# ============================================================
+echo ""
 echo -e "${YELLOW}=== Version ===${NC}"
 # ============================================================
 
 version=$(cat "$SCRIPT_DIR/../version")
-assert_eq "4.0.0-alpha.2" "$version" "version file is 4.0.0-alpha.2"
+assert_eq "4.0.0-alpha.4" "$version" "version file is 4.0.0-alpha.4"
 
 pkg_version=$(grep '"version"' "$SCRIPT_DIR/../package.json" | head -1 | sed 's/.*"version": "//; s/".*//')
-assert_eq "4.0.0-alpha.2" "$pkg_version" "package.json version is 4.0.0-alpha.2"
+assert_eq "4.0.0-alpha.4" "$pkg_version" "package.json version is 4.0.0-alpha.4"
 
 # ============================================================
 echo ""

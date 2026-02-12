@@ -150,6 +150,26 @@ pr_merge() {
     gh pr merge "${args[@]}"
 }
 
+# Update a PR's branch with the latest base branch changes
+pr_update_branch() {
+    _require_gh
+
+    local pr_number="$1"
+    if [[ -z "$pr_number" ]]; then
+        echo "Usage: pr_update_branch <pr-number>" >&2
+        return 1
+    fi
+
+    local head_sha
+    head_sha=$(gh pr view "$pr_number" --json headRefOid -q '.headRefOid')
+
+    local repo
+    repo=$(_detect_repo)
+
+    gh api "repos/${repo}/pulls/${pr_number}/update-branch" \
+        -X PUT -f expected_head_sha="$head_sha" 2>&1
+}
+
 # List files changed in a PR
 pr_files() {
     _require_gh
@@ -192,14 +212,15 @@ pr_remove_label() {
 # CLI dispatch
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     case "${1:-}" in
-        create)       shift; pr_create "$@" ;;
-        status)       shift; pr_status "$@" ;;
-        merge)        shift; pr_merge "$@" ;;
-        files)        shift; pr_files "$@" ;;
-        add-label)    shift; pr_add_label "$@" ;;
-        remove-label) shift; pr_remove_label "$@" ;;
+        create)         shift; pr_create "$@" ;;
+        status)         shift; pr_status "$@" ;;
+        merge)          shift; pr_merge "$@" ;;
+        update-branch)  shift; pr_update_branch "$@" ;;
+        files)          shift; pr_files "$@" ;;
+        add-label)      shift; pr_add_label "$@" ;;
+        remove-label)   shift; pr_remove_label "$@" ;;
         *)
-            echo "Usage: pr-manager.sh {create|status|merge|files|add-label|remove-label} [args...]" >&2
+            echo "Usage: pr-manager.sh {create|status|merge|update-branch|files|add-label|remove-label} [args...]" >&2
             exit 1
             ;;
     esac

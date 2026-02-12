@@ -34,11 +34,23 @@ git -C "$WORKTREE_PATH" status --short
 3. If there are uncommitted changes, STOP and inform user:
    "Worker '$1' has uncommitted changes. Please commit or stash them first."
 
-4. If clean, proceed with merge:
+4. If clean, rebase and merge:
 ```bash
 # Ensure main is up to date
 git fetch origin
 git pull origin main
+
+# Rebase feature branch onto latest main to prevent conflicts
+git -C "$WORKTREE_PATH" fetch origin main
+if ! git -C "$WORKTREE_PATH" rebase origin/main; then
+    git -C "$WORKTREE_PATH" rebase --abort
+    echo "CONFLICT: Feature branch conflicts with main. Resolve manually."
+    # List conflicting files for context
+    git -C "$WORKTREE_PATH" diff --name-only --diff-filter=U 2>/dev/null || true
+    exit 1
+fi
+# Push rebased branch
+git -C "$WORKTREE_PATH" push --force-with-lease origin "$BRANCH"
 
 # Merge the feature branch
 git merge "$BRANCH" --no-ff -m "Merge $BRANCH: [summary of changes]"

@@ -52,7 +52,23 @@ WORKTREE_PATH="$HOME/.worktrees/$REPO_NAME/$1"
 BRANCH_NAME="feature/$1"
 
 mkdir -p "$HOME/.worktrees/$REPO_NAME"
-git worktree add -b "$BRANCH_NAME" "$WORKTREE_PATH" HEAD
+
+# Detect project context — branch off the project branch if inside a project worktree
+PROJECT_BRANCH=""
+for sf in "$HOME/.claude/projects"/*/state.json; do
+    [ -f "$sf" ] || continue
+    wt=$(jq -r '.worktree_path // empty' "$sf" 2>/dev/null)
+    if [ -n "$wt" ] && [ "$PWD" = "$wt"* ]; then
+        PROJECT_BRANCH=$(jq -r '.branch' "$sf")
+        break
+    fi
+done
+
+if [ -n "$PROJECT_BRANCH" ]; then
+    git worktree add -b "$BRANCH_NAME" "$WORKTREE_PATH" "$PROJECT_BRANCH"
+else
+    git worktree add -b "$BRANCH_NAME" "$WORKTREE_PATH" HEAD
+fi
 ```
 
 4. Create a session-specific WORKER_CLAUDE.md in the worktree with:
@@ -81,6 +97,14 @@ After your PR is merged, the orchestrator will run:
 - `/qcode` for code simplification
 
 Any suggestions will be added to the backlog database.
+
+## Backlog Enforcement (MANDATORY)
+Any future work items, suggestions, or improvements discovered during implementation
+MUST be added to the shared backlog database — regardless of which worktree you're in:
+```bash
+~/.claude/scripts/backlog.sh add "Description" --priority important --source worker
+```
+This ensures all projects contribute to a single source of truth for pending work.
 
 ## Coding Standards
 Follow the main CLAUDE.md in the repo root for coding standards.

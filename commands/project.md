@@ -63,11 +63,25 @@ For simple tasks, skip worker spawning and implement directly, then run quality 
 ### Resuming After Context Compaction
 
 If you're resuming this project after context was compacted:
-1. Read the PRD file (check `~/.claude/project-state.json` for `prd_path`)
-2. Go directly to **Section 6: Execution Status** in the PRD
-3. The "Current State" tells you what phase you're in
-4. The "Phase Checklist" shows what's done
-5. Resume from the appropriate phase below
+1. Find the project state file:
+   - Check `~/.claude/projects/*/state.json` for a state file matching the current worktree path (`$PWD`)
+   - Fallback: check legacy `~/.claude/project-state.json`
+   ```bash
+   for sf in ~/.claude/projects/*/state.json; do
+       wt=$(jq -r '.worktree_path // empty' "$sf" 2>/dev/null)
+       if [[ -n "$wt" && "$PWD" == "$wt"* ]]; then
+           echo "Found project state: $sf"
+           cat "$sf"
+           break
+       fi
+   done
+   ```
+2. Read the PRD file (from `prd_path` in the state file)
+3. Go directly to **Section 6: Execution Status** in the PRD
+4. The "Current State" tells you what phase you're in
+5. The "Phase Checklist" shows what's done
+6. Restore `WORKTREE_PATH`, `PROJECT_ID`, `PROJECT_STATE_DIR` from the state file
+7. Resume from the appropriate phase below
 
 ### Phase 1: PRD Generation (CONCEPTUALIZING)
 
@@ -83,16 +97,27 @@ Generate a comprehensive PRD and save it:
 # Generate project name (slug) from description
 PROJECT_NAME=$(echo "$ARGUMENTS" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | cut -c1-30)
 
+# Generate unique project ID
+PROJECT_ID="${PROJECT_NAME}-$(date +%s | shasum | head -c 6)"
+
 # Create dated filename: PRD-YYYY-MM-DD-project-name.md
 DATE_PREFIX=$(date +%Y-%m-%d)
 PRD_FILENAME="PRD-${DATE_PREFIX}-${PROJECT_NAME}.md"
 REPO_ROOT=$(git rev-parse --show-toplevel)
+REPO_NAME=$(basename "$REPO_ROOT")
 
-# Ensure /prds directory exists
-mkdir -p "${REPO_ROOT}/prds"
+# Create isolated git worktree for this project
+WORKTREE_PATH="$HOME/.worktrees/${REPO_NAME}/project-${PROJECT_ID}"
+mkdir -p "$HOME/.worktrees/${REPO_NAME}"
+git worktree add -b "project/${PROJECT_ID}" "$WORKTREE_PATH" HEAD
+
+# Ensure /prds directory exists IN THE WORKTREE
+mkdir -p "${WORKTREE_PATH}/prds"
 ```
 
-Write the PRD to `${REPO_ROOT}/prds/${PRD_FILENAME}` with these sections:
+**IMPORTANT**: All file operations MUST use absolute paths under `$WORKTREE_PATH`. Do NOT modify files in the main repository. Set `REPO_ROOT="$WORKTREE_PATH"` for all subsequent phases.
+
+Write the PRD to `${WORKTREE_PATH}/prds/${PRD_FILENAME}` with these sections:
 
 ```markdown
 # PRD: [Project Name]
@@ -180,45 +205,63 @@ How to verify the project is complete:
 
 **Update PRD Status**: Change Phase to `IMPLEMENTING`, check off Phase 1, add log entry.
 
-Create the project state file:
+Create the per-project state file (supports concurrent projects):
 
 ```bash
-cat > ~/.claude/project-state.json << JSONEOF
+# Initialize per-project state directory
+PROJECT_STATE_DIR="$HOME/.claude/projects/${PROJECT_ID}"
+mkdir -p "$PROJECT_STATE_DIR"
+
+cat > "${PROJECT_STATE_DIR}/state.json" << JSONEOF
 {
+  "project_id": "${PROJECT_ID}",
   "project_name": "${PROJECT_NAME}",
-  "prd_path": "${REPO_ROOT}/prds/${PRD_FILENAME}",
+  "prd_path": "${WORKTREE_PATH}/prds/${PRD_FILENAME}",
   "prd_filename": "${PRD_FILENAME}",
+  "worktree_path": "${WORKTREE_PATH}",
+  "branch": "project/${PROJECT_ID}",
   "status": "implementing",
   "iteration": 1,
   "max_iterations": 3,
   "is_simple": false,
   "started_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
   "completed_at": null,
+  "workers": [],
   "feedback_history": []
 }
 JSONEOF
 ```
 
+**Note**: State is stored at `~/.claude/projects/${PROJECT_ID}/state.json` (not the old singleton `~/.claude/project-state.json`). This allows multiple projects to run concurrently without overwriting each other.
+
 ### Phase 3: Implementation
 
-**For Simple Tasks**: Implement directly in the main session, then proceed to Phase 4.
+**All implementation happens inside `$WORKTREE_PATH`** — never in the main repo checkout.
 
-**For Complex Tasks**: Use the Task tool to spawn worker agents:
+**For Simple Tasks**: Implement directly in the main session using absolute paths under `$WORKTREE_PATH`, then proceed to Phase 4.
+
+**For Complex Tasks**: Use the Task tool to spawn worker agents. Workers branch off the project branch (not HEAD of main):
 
 ```
-Use Task tool with subagent_type appropriate for each worker task
+Use Task tool with subagent_type appropriate for each worker task.
+Workers should be instructed to work inside $WORKTREE_PATH.
 ```
 
 After all workers complete, update status and proceed to Phase 4.
+
+**Backlog Enforcement**: Any future work items, suggestions, or improvements discovered during implementation MUST be added to the shared backlog database:
+```bash
+~/.claude/scripts/backlog.sh add "Description of future work" --priority important --source project
+```
 
 ### Phase 4: Review Implementation (REVIEWING)
 
 **Update PRD Status**: Set Phase to `REVIEWING`, add log entry.
 
-Review the changes:
+Review the changes (in the worktree):
 ```bash
-git log --oneline main..HEAD
-git diff main --stat
+git -C "$WORKTREE_PATH" log --oneline main..HEAD
+git -C "$WORKTREE_PATH" diff main --stat
 ```
 
 For each success criterion, verify it is met by:
@@ -369,10 +412,26 @@ SLACKEOF
 
 **Update PRD Status**: Set Phase to `COMPLETE`, add final log entry.
 
+Create a PR from the project branch to main:
+```bash
+# Push the project branch
+git -C "$WORKTREE_PATH" push -u origin "project/${PROJECT_ID}"
+
+# Create PR (the orchestrator's merge queue will handle rebasing and merging)
+gh pr create --head "project/${PROJECT_ID}" --base main \
+    --title "${PROJECT_NAME}: [summary]" \
+    --body "PRD: ${PRD_FILENAME}"
+```
+
 Update project state:
 ```bash
-jq '.status = "complete" | .completed_at = "$(date -u +%Y-%m-%dT%H:%M:%SZ)"' ~/.claude/project-state.json > tmp.$$ && mv tmp.$$ ~/.claude/project-state.json
+jq '.status = "pr_created" | .completed_at = "'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'"' \
+    "${PROJECT_STATE_DIR}/state.json" > tmp.$$ && mv tmp.$$ "${PROJECT_STATE_DIR}/state.json"
 ```
+
+**Note**: Do NOT clean up the worktree yet — the merge queue needs it for auto-rebase. Worktree cleanup happens after merge completes.
+
+**Backlog Enforcement**: Before marking complete, ensure ALL future work items, improvements, and suggestions have been added to the shared backlog database via `~/.claude/scripts/backlog.sh add`.
 
 Send notifications:
 ```bash

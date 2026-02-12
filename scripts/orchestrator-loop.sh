@@ -36,6 +36,10 @@ source "$PIPELINE_DIR/gate-runner.sh"
 source "$PIPELINE_DIR/pr-manager.sh"
 # shellcheck source=./mode-detect.sh
 source "$SCRIPT_DIR/mode-detect.sh"
+# shellcheck source=./project-state.sh
+source "$SCRIPT_DIR/project-state.sh" 2>/dev/null || true
+# shellcheck source=./merge-queue.sh
+source "$SCRIPT_DIR/merge-queue.sh" 2>/dev/null || true
 
 mkdir -p "$(dirname "$LOG_FILE")"
 
@@ -53,11 +57,26 @@ log() {
 }
 
 # ============================================================
-# PROJECT MODE FUNCTIONS
+# PROJECT MODE FUNCTIONS (multi-project aware)
 # ============================================================
 
+# Legacy singleton check — still used for backward compatibility
 is_project_mode() {
-    [[ -f "$PROJECT_STATE_FILE" ]]
+    [[ -f "$PROJECT_STATE_FILE" ]] || any_project_active
+}
+
+# Check if any per-project state files indicate active projects
+any_project_active() {
+    local state_base="${PROJECT_STATE_BASE:-$HOME/.claude/projects}"
+    for sf in "$state_base"/*/state.json; do
+        [[ -f "$sf" ]] || continue
+        local status
+        status=$(jq -r '.status // empty' "$sf" 2>/dev/null)
+        if [[ -n "$status" && "$status" != "complete" && "$status" != "failed" ]]; then
+            return 0
+        fi
+    done
+    return 1
 }
 
 get_project_status() {
@@ -84,14 +103,22 @@ update_project_status() {
     fi
 }
 
-check_all_project_workers_complete() {
-    if ! is_project_mode; then return 1; fi
-
+# Check workers for a specific project state file
+_check_project_workers_complete() {
+    local state_file="$1"
     local active
-    active=$(jq '[.workers[] | select(.status != "merged")] | length' "$PROJECT_STATE_FILE" 2>/dev/null)
+    active=$(jq '[.workers[] | select(.status != "merged")] | length' "$state_file" 2>/dev/null)
 
     if [[ -z "$active" || "$active" -eq 0 ]]; then
         return 0
+    fi
+    return 1
+}
+
+check_all_project_workers_complete() {
+    if [[ -f "$PROJECT_STATE_FILE" ]]; then
+        _check_project_workers_complete "$PROJECT_STATE_FILE"
+        return $?
     fi
     return 1
 }
@@ -171,6 +198,12 @@ if [[ -d "$PROJECT_DIR/orchestrator" ]]; then
 fi
 
 log "Three-tier memory loaded"
+
+# Migrate legacy singleton project state if it exists
+if [[ -f "$HOME/.claude/project-state.json" ]] && declare -f project_migrate_legacy &>/dev/null; then
+    log "Migrating legacy project-state.json..."
+    project_migrate_legacy 2>/dev/null || true
+fi
 
 # ============================================================
 # LOAD MERGE SETTINGS
@@ -387,7 +420,14 @@ while true; do
                             MERGE_ARGS+=(--delete-branch)
                         fi
 
-                        if pr_merge "${MERGE_ARGS[@]}" 2>/dev/null; then
+                        local merge_exit=0
+                        if declare -f merge_queue_process &>/dev/null; then
+                            merge_queue_process "${MERGE_ARGS[@]}" 2>/dev/null || merge_exit=$?
+                        else
+                            pr_merge "${MERGE_ARGS[@]}" 2>/dev/null || merge_exit=$?
+                        fi
+
+                        if [[ $merge_exit -eq 0 ]]; then
                             record_activity "$PR_NUM" "$BRANCH"
                             delivery_transition "$BRANCH" "MERGED" 2>/dev/null || true
                             log "PR #${PR_NUM} merged successfully"
@@ -395,6 +435,10 @@ while true; do
                             if [[ "$STRUCTURED_LOGGING" == true ]]; then
                                 log_pr_merged "$PR_NUM"
                             fi
+                        elif [[ $merge_exit -eq 2 ]]; then
+                            delivery_transition "$BRANCH" "BLOCKED" 2>/dev/null || true
+                            log "PR #${PR_NUM} blocked by merge conflict"
+                            notify_human "Merge Conflict" "PR #${PR_NUM} (${BRANCH}) has conflicts with main"
                         else
                             delivery_transition "$BRANCH" "BLOCKED" 2>/dev/null || true
                             log "PR #${PR_NUM} merge failed"
@@ -425,11 +469,44 @@ while true; do
     done
 
     # ============================================================
-    # PROJECT MODE: Check if all workers are complete
+    # PROJECT MODE: Check if all workers are complete (multi-project)
     # ============================================================
-    if is_project_mode; then
-        PROJECT_STATUS=$(get_project_status)
 
+    # Check per-project state files
+    _project_state_base="${PROJECT_STATE_BASE:-$HOME/.claude/projects}"
+    for _pf in "$_project_state_base"/*/state.json; do
+        [[ -f "$_pf" ]] || continue
+        _pf_status=$(jq -r '.status // empty' "$_pf" 2>/dev/null)
+
+        if [[ "$_pf_status" == "workers_active" ]]; then
+            if _check_project_workers_complete "$_pf"; then
+                _pf_name=$(jq -r '.project_name // .project_id' "$_pf" 2>/dev/null)
+                _pf_id=$(jq -r '.project_id' "$_pf" 2>/dev/null)
+
+                if [[ "$STRUCTURED_LOGGING" == true ]]; then
+                    log_project_workers_complete "$_pf_name"
+                else
+                    log "PROJECT MODE: All workers have merged for project: $_pf_name"
+                fi
+
+                # Update project status via project_update if available
+                if declare -f project_update &>/dev/null && [[ -n "$_pf_id" ]]; then
+                    project_update "$_pf_id" '.status = "all_merged"' >/dev/null 2>&1 || true
+                else
+                    local _tmp
+                    _tmp=$(mktemp)
+                    jq '.status = "all_merged"' "$_pf" > "$_tmp" && mv "$_tmp" "$_pf"
+                fi
+
+                notify_human "Project Complete" "All workers merged for: $_pf_name"
+                log "Project $_pf_name complete — notified human"
+            fi
+        fi
+    done
+
+    # Legacy singleton fallback
+    if [[ -f "$PROJECT_STATE_FILE" ]]; then
+        PROJECT_STATUS=$(get_project_status)
         if [[ "$PROJECT_STATUS" == "workers_active" ]]; then
             if check_all_project_workers_complete; then
                 PROJECT_NAME=$(get_project_name)

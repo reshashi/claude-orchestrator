@@ -19,6 +19,13 @@ agent_teams:
   session_timeout_minutes: 30
   auto_restart_crashed: false  # when true, attempts to restart crashed teammate sessions
 
+merge_queue:
+  enabled: true
+  lock_timeout_seconds: 120
+  auto_rebase: true
+  ci_wait_after_rebase_seconds: 300
+  conflict_action: notify  # notify | skip
+
 backlog:
   enabled: true
   auto_record_review: true   # always record /review findings to backlog

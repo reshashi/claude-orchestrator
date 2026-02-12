@@ -8,13 +8,29 @@ allowed-tools: Bash(git:*), Bash(cat:*), Bash(ls:*), Bash(~/.claude-orchestrator
 ## Active Worktrees
 !`git worktree list`
 
+## Active Projects
+!`for f in ~/.claude/projects/*/state.json; do [ -f "$f" ] && jq -r '"\(.project_id)|\(.status)|\(.branch // "n/a")"' "$f"; done 2>/dev/null || echo "(no active projects)"`
+
 ## Session Log
 !`cat ~/.claude/active-sessions.log 2>/dev/null || echo "(no sessions logged)"`
 
 ## Instructions
 
-1. Parse the worktree list and session log
-2. For each active worktree, check:
+1. Parse the worktree list, session log, and active projects
+2. If there are active projects, present a project table:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ Active Projects                                                  │
+├──────────────────┬────────────────┬─────────────────────────────┤
+│ Project ID       │ Status         │ Branch                      │
+├──────────────────┼────────────────┼─────────────────────────────┤
+│ dark-mode-a1b2c3 │ implementing   │ project/dark-mode-a1b2c3    │
+│ auth-fix-d4e5f6  │ pr_created     │ project/auth-fix-d4e5f6     │
+└──────────────────┴────────────────┴─────────────────────────────┘
+```
+
+3. For each active worktree, check:
    - Branch name
    - Last commit (if any): `git -C [path] log --oneline -1 2>/dev/null`
    - Working directory status: `git -C [path] status --short 2>/dev/null`
