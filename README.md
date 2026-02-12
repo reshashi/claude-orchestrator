@@ -4,7 +4,7 @@
 
 [![Cross-Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-blue.svg)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-4.0.0--alpha.2-green.svg)](https://github.com/reshashi/claude-orchestrator/releases/latest)
+[![Version](https://img.shields.io/badge/version-4.0.0--alpha.4-green.svg)](https://github.com/reshashi/claude-orchestrator/releases/latest)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org/)
 
 ---
@@ -33,7 +33,11 @@ cd ~/.claude-orchestrator && bash install.sh -y
 
 ## What Problem Does This Solve?
 
-Claude Code Agent Teams handles multi-session orchestration natively. But it does **not** provide:
+**The pain:** You open 5 iTerm tabs, run `/project` in each one, and everything falls apart. Every project writes to the same repo checkout, so files get stomped. They all share a single `project-state.json`, so whichever project writes last wins. When PRs start landing, each merge shifts `main` out from under the others — causing cascading merge conflicts, failed CI, and hours of manual cleanup. The more tabs you open, the worse it gets.
+
+**The fix:** Claude Orchestrator gives each `/project` its own git worktree, its own state file, and feeds all PRs through a merge queue that auto-rebases before merging. You open N tabs, run `/project` in each, and everything just works.
+
+Beyond multi-project isolation, Claude Code Agent Teams does **not** natively provide:
 
 - **A delivery pipeline** — PR creation, CI monitoring, quality review gates, merge automation
 - **Git worktree isolation** — conflict-free parallel branches for write-heavy tasks
@@ -342,6 +346,13 @@ loop:
   stall_timeout_minutes: 15
   stall_action: notify              # notify | retry | skip
 
+merge_queue:
+  enabled: true
+  lock_timeout_seconds: 120
+  auto_rebase: true
+  ci_wait_after_rebase_seconds: 300
+  conflict_action: notify             # notify | skip
+
 agent_teams:
   health_check_interval_seconds: 60
   session_timeout_minutes: 30
@@ -383,6 +394,8 @@ Controls which quality agents run, whether they block merges, and their trigger 
 │   ├── orchestrator-loop.sh        # Background delivery loop
 │   ├── orchestrator.sh             # CLI wrapper for pipeline
 │   ├── orchestrator-status.sh      # Status display
+│   ├── project-state.sh             # Per-project state CRUD + locking
+│   ├── merge-queue.sh              # Merge queue with auto-rebase
 │   ├── mode-detect.sh              # Mode detection (bash)
 │   ├── auto-review.sh              # Heuristic code review
 │   ├── auto-qcode.sh               # Heuristic code quality
@@ -405,7 +418,7 @@ Controls which quality agents run, whether they block merges, and their trigger 
 │   └── ...
 ├── templates/                      # Hook and workflow templates
 ├── tests/                          # Test suites
-│   ├── test-pipeline.sh            # Pipeline tests (73 tests)
+│   ├── test-pipeline.sh            # Pipeline tests (94 tests)
 │   └── test-memory.sh              # Memory tests (10 tests)
 ├── install.sh                      # Installer
 ├── uninstall.sh                    # Uninstaller
@@ -502,7 +515,22 @@ npm install && npm run build
 
 ## Release Notes
 
-### v4.0.0-alpha.2 (Current)
+### v4.0.0-alpha.4 (Current)
+
+**Multi-Project Isolation & Merge Queue**
+
+- **Per-project worktrees** — each `/project` gets its own git worktree, so concurrent projects never touch the same files
+- **Per-project state** — `~/.claude/projects/{id}/state.json` replaces the singleton `project-state.json`, eliminating overwrite races
+- **Merge queue with auto-rebase** — PRs merge sequentially through a lock; branches auto-rebase onto latest `main` via GitHub API (with local fallback)
+- **Conflict detection** — merge conflicts are caught and reported with file lists instead of silently failing
+- **Orchestrator loop** scans all active projects, uses merge queue, migrates legacy state at startup
+- `/spawn` detects project context and branches off the project branch
+- `/merge` auto-rebases before merging
+- `/status` shows active projects table
+- Backlog enforcement across all worktrees
+- 27 new tests (94 total)
+
+### v4.0.0-alpha.2
 
 **Backlog Enforcement + Phase 3**
 
