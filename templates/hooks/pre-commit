@@ -17,6 +17,21 @@ echo -e "${YELLOW}Running pre-commit quality checks...${NC}"
 # Track if any check fails
 FAILED=0
 
+# --- Section 0: Branch Guard ---
+# Prevent commits on wrong branch in worktree sessions
+BRANCH_GUARD="$HOME/.claude/scripts/branch-guard.sh"
+if [ -x "$BRANCH_GUARD" ]; then
+    echo -e "\n${YELLOW}[0] Checking branch guard...${NC}"
+    if "$BRANCH_GUARD" --check-only 2>&1; then
+        echo -e "${GREEN}✓ Branch guard passed${NC}"
+    else
+        echo -e "${RED}✗ Branch guard BLOCKED this commit${NC}"
+        echo -e "${RED}  You are on the wrong branch for this worktree.${NC}"
+        echo -e "${RED}  Run: $BRANCH_GUARD for recovery instructions.${NC}"
+        exit 1
+    fi
+fi
+
 # Check if package.json exists (Node.js project)
 if [ -f "package.json" ]; then
     # Get list of available scripts

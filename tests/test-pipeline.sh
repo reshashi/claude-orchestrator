@@ -632,6 +632,48 @@ assert_ok $? "orchestrator-loop.sh sources merge-queue.sh"
 
 # ============================================================
 echo ""
+echo -e "${YELLOW}=== Branch Guard ===${NC}"
+# ============================================================
+
+# Test that branch-guard.sh is parseable
+bash -n "$SCRIPTS_DIR/branch-guard.sh"
+assert_ok $? "branch-guard.sh has valid syntax"
+
+# Test usage/help output
+output=$(bash "$SCRIPTS_DIR/branch-guard.sh" --help 2>&1)
+assert_ok $? "branch-guard.sh --help exits 0"
+assert_contains "$output" "Usage:" "branch-guard.sh shows usage on --help"
+
+# Verify key patterns exist in the script
+output=$(grep 'find_marker()' "$SCRIPTS_DIR/branch-guard.sh")
+assert_ok $? "branch-guard.sh has find_marker function"
+
+output=$(grep '.claude-worktree' "$SCRIPTS_DIR/branch-guard.sh")
+assert_ok $? "branch-guard.sh references .claude-worktree marker"
+
+output=$(grep 'BLOCKED' "$SCRIPTS_DIR/branch-guard.sh")
+assert_ok $? "branch-guard.sh has BLOCKED output"
+
+output=$(grep '\-\-check-only' "$SCRIPTS_DIR/branch-guard.sh")
+assert_ok $? "branch-guard.sh supports --check-only flag"
+
+output=$(grep '\-\-dir' "$SCRIPTS_DIR/branch-guard.sh")
+assert_ok $? "branch-guard.sh supports --dir flag"
+
+# Verify wt.sh writes marker
+output=$(grep '.claude-worktree' "$SCRIPTS_DIR/wt.sh")
+assert_ok $? "wt.sh references .claude-worktree marker"
+
+# Verify commit-push-pr.md has branch guard
+output=$(grep -i 'branch.guard' "$SCRIPT_DIR/../commands/commit-push-pr.md")
+assert_ok $? "commit-push-pr.md has Branch Guard section"
+
+# Verify pre-commit hook has branch guard
+output=$(grep 'branch-guard' "$SCRIPT_DIR/../templates/hooks/pre-commit")
+assert_ok $? "pre-commit hook references branch-guard.sh"
+
+# ============================================================
+echo ""
 echo -e "${YELLOW}=== Version ===${NC}"
 # ============================================================
 

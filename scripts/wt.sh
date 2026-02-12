@@ -38,7 +38,23 @@ create_worktree() {
     echo "Branch: $branch (from $base)"
     
     git worktree add -b "$branch" "$worktree_path" "$base"
-    
+
+    # Write .claude-worktree marker for branch enforcement
+    cat > "$worktree_path/.claude-worktree" << MARKEREOF
+{
+  "branch": "$branch",
+  "worktree_path": "$worktree_path",
+  "repo": "$repo",
+  "session": "$name",
+  "created_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+MARKEREOF
+
+    # Add marker to worktree's .gitignore (don't commit it)
+    if ! grep -qF '.claude-worktree' "$worktree_path/.gitignore" 2>/dev/null; then
+        echo '.claude-worktree' >> "$worktree_path/.gitignore"
+    fi
+
     echo ""
     echo "✓ Worktree created!"
     echo ""
