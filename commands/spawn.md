@@ -69,6 +69,21 @@ if [ -n "$PROJECT_BRANCH" ]; then
 else
     git worktree add -b "$BRANCH_NAME" "$WORKTREE_PATH" HEAD
 fi
+
+# Write .claude-worktree marker for branch enforcement
+cat > "$WORKTREE_PATH/.claude-worktree" << MARKEREOF
+{
+  "branch": "$BRANCH_NAME",
+  "worktree_path": "$WORKTREE_PATH",
+  "session": "$1",
+  "created_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+MARKEREOF
+
+# Add marker to worktree's .gitignore (don't commit it)
+if ! grep -qF '.claude-worktree' "$WORKTREE_PATH/.gitignore" 2>/dev/null; then
+    echo '.claude-worktree' >> "$WORKTREE_PATH/.gitignore"
+fi
 ```
 
 4. Create a session-specific WORKER_CLAUDE.md in the worktree with:
@@ -106,6 +121,32 @@ MUST be added to the shared backlog database — regardless of which worktree yo
 ```
 This ensures all projects contribute to a single source of truth for pending work.
 
+## Git Safety (CRITICAL)
+
+**BEFORE any git operation**, run the branch guard:
+```bash
+BRANCH_GUARD="$HOME/.claude/scripts/branch-guard.sh"
+if [ -x "$BRANCH_GUARD" ]; then
+    WORKTREE_PATH=$("$BRANCH_GUARD") || { echo "WRONG BRANCH — aborting"; exit 1; }
+fi
+```
+
+**ALL git commands MUST use the worktree path**:
+```bash
+git -C "$WORKTREE_PATH" add -A
+git -C "$WORKTREE_PATH" commit -m "..."
+git -C "$WORKTREE_PATH" push -u origin HEAD
+```
+
+**NEVER commit on main/master.** If `git branch --show-current` returns main or master, STOP.
+
+**If lost after context compaction**, recover via the marker file:
+```bash
+# Find your worktree
+cat .claude-worktree  # if in the worktree root
+# Or walk up: the branch-guard.sh script does this automatically
+```
+
 ## Coding Standards
 Follow the main CLAUDE.md in the repo root for coding standards.
 ```
@@ -116,7 +157,7 @@ Use the Task tool with an appropriate subagent_type (e.g., "general-purpose") to
 
 ```
 Task tool with:
-- prompt: "Work in the worktree at $WORKTREE_PATH. Read WORKER_CLAUDE.md for your task. Complete the task, run quality checks, and create a PR."
+- prompt: "FIRST: cd $WORKTREE_PATH && verify you're on branch $BRANCH_NAME with: git branch --show-current. If NOT on the correct branch, run: git checkout $BRANCH_NAME. Then read WORKER_CLAUDE.md for your task. ALL git commands must use git -C $WORKTREE_PATH. Complete the task, run quality checks, and create a PR."
 - subagent_type: "general-purpose"
 ```
 

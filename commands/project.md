@@ -63,25 +63,39 @@ For simple tasks, skip worker spawning and implement directly, then run quality 
 ### Resuming After Context Compaction
 
 If you're resuming this project after context was compacted:
-1. Find the project state file:
-   - Check `~/.claude/projects/*/state.json` for a state file matching the current worktree path (`$PWD`)
-   - Fallback: check legacy `~/.claude/project-state.json`
+1. Find the worktree via `.claude-worktree` marker (preferred) or state file fallback:
    ```bash
-   for sf in ~/.claude/projects/*/state.json; do
-       wt=$(jq -r '.worktree_path // empty' "$sf" 2>/dev/null)
-       if [[ -n "$wt" && "$PWD" == "$wt"* ]]; then
-           echo "Found project state: $sf"
-           cat "$sf"
-           break
-       fi
-   done
+   # Method 1: Walk up from $PWD to find .claude-worktree marker
+   BRANCH_GUARD="$HOME/.claude/scripts/branch-guard.sh"
+   if [ -x "$BRANCH_GUARD" ]; then
+       WORKTREE_PATH=$("$BRANCH_GUARD") && echo "Found worktree: $WORKTREE_PATH"
+   fi
+
+   # Method 2: Fallback — search state files
+   if [ -z "$WORKTREE_PATH" ]; then
+       for sf in ~/.claude/projects/*/state.json; do
+           wt=$(jq -r '.worktree_path // empty' "$sf" 2>/dev/null)
+           if [[ -n "$wt" && "$PWD" == "$wt"* ]]; then
+               WORKTREE_PATH="$wt"
+               echo "Found project state: $sf"
+               cat "$sf"
+               break
+           fi
+       done
+   fi
+
+   # Read marker for project details
+   if [ -f "$WORKTREE_PATH/.claude-worktree" ]; then
+       PROJECT_ID=$(jq -r '.project_id // empty' "$WORKTREE_PATH/.claude-worktree")
+   fi
    ```
-2. Read the PRD file (from `prd_path` in the state file)
-3. Go directly to **Section 6: Execution Status** in the PRD
-4. The "Current State" tells you what phase you're in
-5. The "Phase Checklist" shows what's done
-6. Restore `WORKTREE_PATH`, `PROJECT_ID`, `PROJECT_STATE_DIR` from the state file
-7. Resume from the appropriate phase below
+2. `cd "$WORKTREE_PATH"` — ensure all operations happen in the worktree
+3. Read the PRD file (from `prd_path` in the state file)
+4. Go directly to **Section 6: Execution Status** in the PRD
+5. The "Current State" tells you what phase you're in
+6. The "Phase Checklist" shows what's done
+7. Restore `PROJECT_ID`, `PROJECT_STATE_DIR` from the state file
+8. Resume from the appropriate phase below
 
 ### Phase 1: PRD Generation (CONCEPTUALIZING)
 
@@ -111,8 +125,24 @@ WORKTREE_PATH="$HOME/.worktrees/${REPO_NAME}/project-${PROJECT_ID}"
 mkdir -p "$HOME/.worktrees/${REPO_NAME}"
 git worktree add -b "project/${PROJECT_ID}" "$WORKTREE_PATH" HEAD
 
+# Write .claude-worktree marker for branch enforcement
+cat > "$WORKTREE_PATH/.claude-worktree" << MARKEREOF
+{
+  "branch": "project/${PROJECT_ID}",
+  "worktree_path": "$WORKTREE_PATH",
+  "project_id": "$PROJECT_ID",
+  "created_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+MARKEREOF
+
+# Add marker to worktree's .gitignore (don't commit it)
+echo '.claude-worktree' >> "$WORKTREE_PATH/.gitignore"
+
 # Ensure /prds directory exists IN THE WORKTREE
 mkdir -p "${WORKTREE_PATH}/prds"
+
+# Switch to the worktree directory
+cd "$WORKTREE_PATH"
 ```
 
 **IMPORTANT**: All file operations MUST use absolute paths under `$WORKTREE_PATH`. Do NOT modify files in the main repository. Set `REPO_ROOT="$WORKTREE_PATH"` for all subsequent phases.
@@ -236,6 +266,13 @@ JSONEOF
 
 ### Phase 3: Implementation
 
+**Branch Guard**: Before starting, verify you're in the right place:
+```bash
+cd "$WORKTREE_PATH"
+BRANCH_GUARD="$HOME/.claude/scripts/branch-guard.sh"
+[ -x "$BRANCH_GUARD" ] && "$BRANCH_GUARD" --check-only || { echo "ERROR: Wrong branch! Run branch-guard.sh for details."; exit 1; }
+```
+
 **All implementation happens inside `$WORKTREE_PATH`** — never in the main repo checkout.
 
 **For Simple Tasks**: Implement directly in the main session using absolute paths under `$WORKTREE_PATH`, then proceed to Phase 4.
@@ -256,6 +293,8 @@ After all workers complete, update status and proceed to Phase 4.
 
 ### Phase 4: Review Implementation (REVIEWING)
 
+**Branch Guard**: `cd "$WORKTREE_PATH" && [ -x "$BRANCH_GUARD" ] && "$BRANCH_GUARD" --check-only`
+
 **Update PRD Status**: Set Phase to `REVIEWING`, add log entry.
 
 Review the changes (in the worktree):
@@ -270,6 +309,8 @@ For each success criterion, verify it is met by:
 3. Checking the implementation matches requirements
 
 ### Phase 5: Run Quality Gates (QUALITY_GATES) - MANDATORY
+
+**Branch Guard**: `cd "$WORKTREE_PATH" && [ -x "$BRANCH_GUARD" ] && "$BRANCH_GUARD" --check-only`
 
 **Update PRD Status**: Set Phase to `QUALITY_GATES`.
 
@@ -350,6 +391,8 @@ osascript -e 'display notification "After 3 iterations, some requirements still 
 
 ### Phase 8: Generate Deliverables (GENERATING_DELIVERABLES)
 
+**Branch Guard**: `cd "$WORKTREE_PATH" && [ -x "$BRANCH_GUARD" ] && "$BRANCH_GUARD" --check-only`
+
 **Update PRD Status**: Set Phase to `GENERATING_DELIVERABLES`, add log entry.
 
 Create the deliverables directory:
@@ -409,6 +452,8 @@ SLACKEOF
 - Keep it under 150 words
 
 ### Phase 10: Notify Human (PROJECT_COMPLETE)
+
+**Branch Guard**: `cd "$WORKTREE_PATH" && [ -x "$BRANCH_GUARD" ] && "$BRANCH_GUARD" --check-only`
 
 **Update PRD Status**: Set Phase to `COMPLETE`, add final log entry.
 
