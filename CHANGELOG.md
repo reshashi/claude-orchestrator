@@ -1,3 +1,66 @@
+## [4.1.0] - 2026-02-12
+
+### Added
+
+- **`.claude-worktree` Marker File** — Written to every worktree root on creation. Persists on
+  disk and survives context compaction, solving the root cause of wrong-branch commits.
+
+- **`scripts/branch-guard.sh`** — Branch enforcement script:
+  - Walks up from `$PWD` to find `.claude-worktree` marker
+  - Reads expected branch, compares with `git branch --show-current`
+  - Blocks on mismatch or protected branch (`main`/`master`)
+  - Supports `--check-only` (validate only) and `--dir <path>` flags
+  - Prints recovery instructions on failure
+
+- **`tests/test-branch-guard.sh`** — 21 tests covering: no marker (allow), correct branch
+  (allow + path output), wrong branch (reject), main/master protection, walk-up discovery
+  from nested directories, `--check-only`, `--dir` flags.
+
+### Changed
+
+- **`commands/commit-push-pr.md`** — Added mandatory Step 0: Branch Guard before any git
+  operation. All `git add`/`commit`/`push` now use `git -C "$WORKTREE_PATH"` when a marker
+  is found. Refuses to commit on wrong branch with recovery instructions.
+
+- **`commands/project.md`**:
+  - Phase 1: Writes `.claude-worktree` marker + `.gitignore` entry after worktree creation
+  - Context Resume: Replaced `$PWD`-matching with marker walk-up discovery (state file fallback)
+  - Phase boundaries (3, 4, 5, 8, 10): Added `cd "$WORKTREE_PATH"` + `branch-guard.sh --check-only`
+
+- **`commands/spawn.md`**:
+  - Writes `.claude-worktree` marker + `.gitignore` entry after worktree creation
+  - WORKER_CLAUDE.md template now includes Git Safety section with `git -C` patterns
+  - Task prompt strengthened with explicit `cd` + branch verification
+
+- **`scripts/wt.sh`** — `create_worktree()` writes `.claude-worktree` marker JSON and adds
+  it to the worktree's `.gitignore`.
+
+- **`templates/hooks/pre-commit`** — Added Section 0: branch guard check before quality checks.
+  Guarded by `[ -x "$BRANCH_GUARD" ]` so it's a no-op if not installed.
+
+- **`tests/test-pipeline.sh`** — 11 new assertions for branch guard integration (syntax,
+  help output, key functions, marker references across `wt.sh`, `commit-push-pr.md`,
+  `pre-commit`). Total: 105 pipeline tests.
+
+---
+
+## [4.0.0-alpha.4] - 2026-02-11
+
+### Added
+
+- **Per-project worktrees** — each `/project` gets its own git worktree
+- **Per-project state** — `~/.claude/projects/{id}/state.json` replaces singleton
+- **Merge queue with auto-rebase** — sequential merge with lock + GitHub API rebase
+- **Conflict detection** — reports conflicting file lists instead of silently failing
+- **Orchestrator loop** scans all active projects, uses merge queue
+- `/spawn` detects project context, branches off project branch
+- `/merge` auto-rebases before merging
+- `/status` shows active projects table
+- Backlog enforcement across all worktrees
+- 27 new tests (94 total)
+
+---
+
 ## [4.0.0-alpha.2] - 2026-02-09
 
 ### Added

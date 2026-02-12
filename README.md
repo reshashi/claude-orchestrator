@@ -4,7 +4,7 @@
 
 [![Cross-Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-blue.svg)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-4.0.0--alpha.4-green.svg)](https://github.com/reshashi/claude-orchestrator/releases/latest)
+[![Version](https://img.shields.io/badge/version-4.1.0-green.svg)](https://github.com/reshashi/claude-orchestrator/releases/latest)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org/)
 
 ---
@@ -397,6 +397,7 @@ Controls which quality agents run, whether they block merges, and their trigger 
 │   ├── project-state.sh             # Per-project state CRUD + locking
 │   ├── merge-queue.sh              # Merge queue with auto-rebase
 │   ├── mode-detect.sh              # Mode detection (bash)
+│   ├── branch-guard.sh             # Worktree branch enforcement
 │   ├── auto-review.sh              # Heuristic code review
 │   ├── auto-qcode.sh               # Heuristic code quality
 │   ├── backlog.sh                  # Task backlog CLI
@@ -418,7 +419,8 @@ Controls which quality agents run, whether they block merges, and their trigger 
 │   └── ...
 ├── templates/                      # Hook and workflow templates
 ├── tests/                          # Test suites
-│   ├── test-pipeline.sh            # Pipeline tests (94 tests)
+│   ├── test-pipeline.sh            # Pipeline tests (105 tests)
+│   ├── test-branch-guard.sh        # Branch guard tests (21 tests)
 │   └── test-memory.sh              # Memory tests (10 tests)
 ├── install.sh                      # Installer
 ├── uninstall.sh                    # Uninstaller
@@ -515,7 +517,20 @@ npm install && npm run build
 
 ## Release Notes
 
-### v4.0.0-alpha.4 (Current)
+### v4.1.0 (Current)
+
+**Structural Branch Enforcement for Worktree Sessions**
+
+- **`.claude-worktree` marker file** — written to every worktree root on creation; persists on disk, survives context compaction
+- **`branch-guard.sh`** — walks up from `$PWD` to find the marker, reads the expected branch, blocks if on the wrong branch or on `main`/`master`; supports `--check-only` and `--dir` flags
+- **`/commit-push-pr` hardened** — Step 0 branch guard before any git operation; all git commands use `git -C "$WORKTREE_PATH"` when in a worktree
+- **`/project` hardened** — marker creation in Phase 1, walk-up resume after context compaction, branch guard checks at phase boundaries (3, 4, 5, 8, 10)
+- **`/spawn` hardened** — marker creation, Git Safety section in WORKER_CLAUDE.md template, stronger Task prompt with explicit `cd` + branch verification
+- **Pre-commit hook** — Section 0 calls `branch-guard.sh --check-only` as last-resort catch (no-op if not installed)
+- **`wt.sh`** — `create_worktree()` writes marker + `.gitignore` entry
+- 21 new branch guard tests + 11 new pipeline assertions (116 total)
+
+### v4.0.0-alpha.4
 
 **Multi-Project Isolation & Merge Queue**
 
