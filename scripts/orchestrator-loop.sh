@@ -420,7 +420,7 @@ while true; do
                             MERGE_ARGS+=(--delete-branch)
                         fi
 
-                        local merge_exit=0
+                        merge_exit=0
                         if declare -f merge_queue_process &>/dev/null; then
                             merge_queue_process "${MERGE_ARGS[@]}" 2>/dev/null || merge_exit=$?
                         else
@@ -493,7 +493,6 @@ while true; do
                 if declare -f project_update &>/dev/null && [[ -n "$_pf_id" ]]; then
                     project_update "$_pf_id" '.status = "all_merged"' >/dev/null 2>&1 || true
                 else
-                    local _tmp
                     _tmp=$(mktemp)
                     jq '.status = "all_merged"' "$_pf" > "$_tmp" && mv "$_tmp" "$_pf"
                 fi
