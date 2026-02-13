@@ -1,0 +1,131 @@
+{
+  "client": {
+    "name": "Noveon Magnetics",
+    "slug": "noveon-magnetics",
+    "industry": "Rare Earths / Manufacturing",
+    "employees": 91,
+    "members": 132,
+    "tpa": "Cigna",
+    "fundingType": "level-funded",
+    "selfInsured": true,
+    "groupNumber": "0632268",
+    "broker": "Insurica Insurance Management",
+    "contact": {
+      "name": "Pat",
+      "title": "CFO",
+      "referredBy": "Jason (friend)"
+    }
+  },
+  "engagement": {
+    "status": "pilot",
+    "startDate": "2026-02-13",
+    "phase": "Phase 1 — Prove Value",
+    "consentStatus": "pending",
+    "annualizedSpend": 1140000,
+    "savingsEstimate": {
+      "conservative": 44750,
+      "moderate": 97360
+    }
+  },
+  "projects": [
+    {
+      "id": "p1",
+      "name": "Pilot Audit Report",
+      "priority": "critical",
+      "status": "complete",
+      "prd": "prds/noveon-p1-pilot-audit-report.md",
+      "backlogId": 200
+    },
+    {
+      "id": "p2",
+      "name": "Utilization Report Parser",
+      "priority": "high",
+      "status": "not-started",
+      "prd": "prds/noveon-p2-utilization-report-parser.md",
+      "backlogId": 201
+    },
+    {
+      "id": "p3",
+      "name": "Raw Claims Ingestion",
+      "priority": "high",
+      "status": "not-started",
+      "prd": "prds/noveon-p3-raw-claims-ingestion.md",
+      "backlogId": 202,
+      "dependsOn": ["p1"]
+    },
+    {
+      "id": "p4",
+      "name": "Claims Learning System",
+      "priority": "strategic",
+      "status": "not-started",
+      "prd": "prds/noveon-p4-claims-learning-system.md",
+      "backlogId": 203,
+      "dependsOn": ["p2", "p3"]
+    },
+    {
+      "id": "p5",
+      "name": "Provider Price Book",
+      "priority": "strategic",
+      "status": "not-started",
+      "prd": "prds/noveon-p5-provider-price-book.md",
+      "backlogId": 204,
+      "dependsOn": ["p3", "p4"]
+    },
+    {
+      "id": "p6",
+      "name": "GLP-1 Playbook",
+      "priority": "high",
+      "status": "not-started",
+      "prd": "prds/noveon-p6-glp1-playbook.md",
+      "backlogId": 205,
+      "dependsOn": ["p1"]
+    },
+    {
+      "id": "p7",
+      "name": "Evidence Base & Story Engine",
+      "priority": "strategic",
+      "status": "not-started",
+      "prd": "prds/noveon-p7-evidence-base.md",
+      "backlogId": 206,
+      "dependsOn": ["p4", "p5"]
+    }
+  ],
+  "deliverables": [
+    {
+      "file": "deliverables/NOVEON_AUDIT_ANALYSIS.md",
+      "type": "internal",
+      "label": "Internal Analysis",
+      "description": "Full 44-page Cigna utilization report analysis"
+    },
+    {
+      "file": "deliverables/NOVEON_CLIENT_REPORT.md",
+      "type": "client",
+      "label": "Client Report",
+      "description": "10-page report for Pat (CFO)"
+    },
+    {
+      "file": "deliverables/EXECUTIVE_SUMMARY_1PAGE.md",
+      "type": "client",
+      "label": "Executive Summary",
+      "description": "One-page summary for quick review"
+    },
+    {
+      "file": "deliverables/CONSENT_AUTHORIZATION.md",
+      "type": "legal",
+      "label": "Consent Authorization",
+      "description": "ERISA claims data access authorization"
+    },
+    {
+      "file": "deliverables/SLACK_POST.md",
+      "type": "internal",
+      "label": "Slack Update",
+      "description": "Team stakeholder communication"
+    },
+    {
+      "file": "deliverables/SUMMARY.md",
+      "type": "internal",
+      "label": "Internal Summary",
+      "description": "Executive summary for internal use"
+    }
+  ]
+}

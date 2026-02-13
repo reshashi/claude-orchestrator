@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Client Portal — Claude Orchestrator</title>
+    <style>
+        :root {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-card: #334155;
+            --bg-hover: #3b4a63;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --accent: #3b82f6;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --purple: #a78bfa;
+            --border: #475569;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        .container { max-width: 1400px; margin: 0 auto; padding: 1rem 1.5rem; }
+
+        /* Header */
+        header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 1rem 0; border-bottom: 1px solid var(--border); margin-bottom: 1.5rem;
+        }
+        .header-left { display: flex; align-items: center; gap: 1rem; }
+        .back-link {
+            color: var(--text-secondary); text-decoration: none; font-size: 0.875rem;
+            display: flex; align-items: center; gap: 0.25rem;
+        }
+        .back-link:hover { color: var(--text-primary); }
+        h1 { font-size: 1.5rem; font-weight: 600; }
+
+        /* Client selector */
+        .client-selector {
+            display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1.5rem;
+        }
+        .client-tab {
+            padding: 0.5rem 1rem; border-radius: 0.5rem; border: 1px solid var(--border);
+            background: var(--bg-secondary); color: var(--text-secondary); cursor: pointer;
+            font-size: 0.875rem; transition: all 0.2s;
+        }
+        .client-tab:hover { border-color: var(--accent); color: var(--text-primary); }
+        .client-tab.active {
+            background: var(--accent); border-color: var(--accent); color: white;
+        }
+
+        /* Stats row */
+        .stats-row {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1rem; margin-bottom: 1.5rem;
+        }
+        .stat-card {
+            background: var(--bg-secondary); border-radius: 0.75rem;
+            padding: 1rem 1.25rem; border: 1px solid var(--border);
+        }
+        .stat-label {
+            font-size: 0.75rem; color: var(--text-secondary);
+            text-transform: uppercase; letter-spacing: 0.05em;
+        }
+        .stat-value { font-size: 1.5rem; font-weight: 700; margin-top: 0.25rem; }
+        .stat-value.success { color: var(--success); }
+        .stat-value.warning { color: var(--warning); }
+        .stat-value.accent { color: var(--accent); }
+
+        /* Two-column layout */
+        .main-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;
+        }
+        @media (max-width: 900px) { .main-grid { grid-template-columns: 1fr; } }
+
+        /* Section */
+        .section {
+            background: var(--bg-secondary); border-radius: 0.75rem;
+            border: 1px solid var(--border); overflow: hidden;
+        }
+        .section-header {
+            padding: 1rem 1.25rem; border-bottom: 1px solid var(--border);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .section-title { font-weight: 600; font-size: 1rem; }
+        .section-body { padding: 0.5rem; }
+
+        /* Document list */
+        .doc-item {
+            display: flex; align-items: center; gap: 0.75rem;
+            padding: 0.75rem; border-radius: 0.5rem; cursor: pointer;
+            transition: background 0.15s;
+        }
+        .doc-item:hover { background: var(--bg-hover); }
+        .doc-icon {
+            width: 36px; height: 36px; border-radius: 0.375rem;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.875rem; flex-shrink: 0;
+        }
+        .doc-icon.client { background: rgba(59, 130, 246, 0.2); color: var(--accent); }
+        .doc-icon.internal { background: rgba(148, 163, 184, 0.2); color: var(--text-secondary); }
+        .doc-icon.legal { background: rgba(167, 139, 250, 0.2); color: var(--purple); }
+        .doc-info { flex: 1; min-width: 0; }
+        .doc-name { font-weight: 500; font-size: 0.875rem; }
+        .doc-desc {
+            font-size: 0.75rem; color: var(--text-secondary);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .doc-badge {
+            font-size: 0.625rem; padding: 0.125rem 0.5rem; border-radius: 9999px;
+            text-transform: uppercase; letter-spacing: 0.05em; flex-shrink: 0;
+        }
+        .doc-badge.client { background: rgba(59, 130, 246, 0.2); color: var(--accent); }
+        .doc-badge.internal { background: rgba(148, 163, 184, 0.15); color: var(--text-secondary); }
+        .doc-badge.legal { background: rgba(167, 139, 250, 0.2); color: var(--purple); }
+
+        /* Project list */
+        .project-item {
+            display: flex; align-items: center; gap: 0.75rem;
+            padding: 0.75rem; border-radius: 0.5rem; cursor: pointer;
+            transition: background 0.15s;
+        }
+        .project-item:hover { background: var(--bg-hover); }
+        .project-status {
+            width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+        }
+        .project-status.complete { background: var(--success); }
+        .project-status.not-started { background: var(--border); }
+        .project-status.in-progress { background: var(--warning); animation: pulse 2s infinite; }
+        .project-info { flex: 1; }
+        .project-name { font-weight: 500; font-size: 0.875rem; }
+        .project-meta { font-size: 0.75rem; color: var(--text-secondary); }
+        .priority-badge {
+            font-size: 0.625rem; padding: 0.125rem 0.5rem; border-radius: 9999px;
+            text-transform: uppercase; letter-spacing: 0.05em; flex-shrink: 0;
+        }
+        .priority-badge.critical { background: rgba(239, 68, 68, 0.2); color: var(--error); }
+        .priority-badge.high { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
+        .priority-badge.strategic { background: rgba(167, 139, 250, 0.2); color: var(--purple); }
+
+        /* Document viewer */
+        .doc-viewer {
+            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7); z-index: 100; padding: 2rem;
+        }
+        .doc-viewer.active { display: flex; justify-content: center; }
+        .doc-viewer-content {
+            background: var(--bg-primary); border-radius: 0.75rem; width: 100%;
+            max-width: 900px; max-height: 100%; display: flex; flex-direction: column;
+            border: 1px solid var(--border);
+        }
+        .doc-viewer-header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 1rem 1.5rem; border-bottom: 1px solid var(--border); flex-shrink: 0;
+        }
+        .doc-viewer-title { font-weight: 600; }
+        .doc-viewer-close {
+            background: none; border: none; color: var(--text-secondary);
+            cursor: pointer; font-size: 1.25rem; padding: 0.25rem 0.5rem;
+        }
+        .doc-viewer-close:hover { color: var(--text-primary); }
+        .doc-viewer-body {
+            padding: 1.5rem; overflow-y: auto; flex: 1;
+            font-family: -apple-system, BlinkMacSystemFont, monospace;
+            font-size: 0.8rem; line-height: 1.7; white-space: pre-wrap;
+            color: var(--text-secondary);
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        /* Full-width sections below */
+        .full-width { grid-column: 1 / -1; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-left">
+                <a href="index.html" class="back-link">&larr; Dashboard</a>
+                <h1>Client Portal</h1>
+            </div>
+        </header>
+
+        <div class="client-selector" id="clientSelector">
+            <!-- Populated by JS -->
+        </div>
+
+        <div id="clientContent">
+            <div class="stats-row" id="statsRow"></div>
+            <div class="main-grid">
+                <div class="section">
+                    <div class="section-header">
+                        <span class="section-title">Deliverables</span>
+                        <span id="docCount" style="font-size: 0.75rem; color: var(--text-secondary);"></span>
+                    </div>
+                    <div class="section-body" id="docList"></div>
+                </div>
+                <div class="section">
+                    <div class="section-header">
+                        <span class="section-title">Projects</span>
+                        <span id="projectCount" style="font-size: 0.75rem; color: var(--text-secondary);"></span>
+                    </div>
+                    <div class="section-body" id="projectList"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Document Viewer Modal -->
+    <div class="doc-viewer" id="docViewer" onclick="if(event.target===this)closeViewer()">
+        <div class="doc-viewer-content">
+            <div class="doc-viewer-header">
+                <span class="doc-viewer-title" id="viewerTitle"></span>
+                <button class="doc-viewer-close" onclick="closeViewer()">&times;</button>
+            </div>
+            <div class="doc-viewer-body" id="viewerBody"></div>
+        </div>
+    </div>
+
+    <script>
+        // ── Configuration ──────────────────────────────────────────────
+        // Base path to the clients directory (relative to dashboard)
+        const CLIENTS_DIR = '../clients';
+
+        // Known clients — in production, this would be auto-discovered
+        const KNOWN_CLIENTS = ['noveon-magnetics'];
+
+        let manifests = {};
+        let currentClient = null;
+
+        // ── Load manifests ─────────────────────────────────────────────
+        async function loadManifests() {
+            for (const slug of KNOWN_CLIENTS) {
+                try {
+                    const resp = await fetch(`${CLIENTS_DIR}/${slug}/manifest.json`);
+                    if (resp.ok) {
+                        manifests[slug] = await resp.json();
+                    }
+                } catch (e) {
+                    console.warn(`Could not load manifest for ${slug}:`, e);
+                }
+            }
+            renderClientTabs();
+            if (KNOWN_CLIENTS.length > 0) {
+                selectClient(KNOWN_CLIENTS[0]);
+            }
+        }
+
+        // ── Client tabs ────────────────────────────────────────────────
+        function renderClientTabs() {
+            const container = document.getElementById('clientSelector');
+            container.innerHTML = Object.entries(manifests).map(([slug, m]) => `
+                <button class="client-tab" data-slug="${slug}" onclick="selectClient('${slug}')">
+                    ${m.client.name}
+                    <span style="font-size:0.75rem;color:var(--text-secondary);margin-left:0.25rem">
+                        (${m.client.employees} emp)
+                    </span>
+                </button>
+            `).join('');
+        }
+
+        function selectClient(slug) {
+            currentClient = slug;
+            document.querySelectorAll('.client-tab').forEach(t => {
+                t.classList.toggle('active', t.dataset.slug === slug);
+            });
+            renderClient(manifests[slug], slug);
+        }
+
+        // ── Render client view ─────────────────────────────────────────
+        function renderClient(manifest, slug) {
+            const c = manifest.client;
+            const e = manifest.engagement;
+
+            // Stats
+            const completedProjects = manifest.projects.filter(p => p.status === 'complete').length;
+            document.getElementById('statsRow').innerHTML = `
+                <div class="stat-card">
+                    <div class="stat-label">Employer</div>
+                    <div class="stat-value" style="font-size:1.1rem">${c.name}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Employees / Members</div>
+                    <div class="stat-value accent">${c.employees} / ${c.members}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Est. Annual Savings</div>
+                    <div class="stat-value success">$${(e.savingsEstimate.conservative/1000).toFixed(0)}K–$${(e.savingsEstimate.moderate/1000).toFixed(0)}K</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Annualized Spend</div>
+                    <div class="stat-value warning">$${(e.annualizedSpend/1000000).toFixed(2)}M</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">TPA / Funding</div>
+                    <div class="stat-value" style="font-size:1.1rem">${c.tpa} / ${c.fundingType}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Projects</div>
+                    <div class="stat-value accent">${completedProjects}/${manifest.projects.length}</div>
+                </div>
+            `;
+
+            // Documents
+            const docs = manifest.deliverables || [];
+            document.getElementById('docCount').textContent = `${docs.length} files`;
+            document.getElementById('docList').innerHTML = docs.map(d => `
+                <div class="doc-item" onclick="viewDoc('${slug}', '${d.file}', '${d.label}')">
+                    <div class="doc-icon ${d.type}">
+                        ${d.type === 'client' ? '&#128196;' : d.type === 'legal' ? '&#9878;' : '&#128203;'}
+                    </div>
+                    <div class="doc-info">
+                        <div class="doc-name">${d.label}</div>
+                        <div class="doc-desc">${d.description}</div>
+                    </div>
+                    <span class="doc-badge ${d.type}">${d.type}</span>
+                </div>
+            `).join('');
+
+            // Projects
+            const projects = manifest.projects || [];
+            document.getElementById('projectCount').textContent =
+                `${completedProjects} complete, ${projects.length - completedProjects} remaining`;
+            document.getElementById('projectList').innerHTML = projects.map(p => `
+                <div class="project-item" onclick="viewDoc('${slug}', '${p.prd}', 'PRD: ${p.name}')">
+                    <div class="project-status ${p.status}"></div>
+                    <div class="project-info">
+                        <div class="project-name">${p.id.toUpperCase()}: ${p.name}</div>
+                        <div class="project-meta">
+                            ${p.status}${p.dependsOn ? ' · depends: ' + p.dependsOn.join(', ') : ''}
+                        </div>
+                    </div>
+                    <span class="priority-badge ${p.priority}">${p.priority}</span>
+                </div>
+            `).join('');
+        }
+
+        // ── Document viewer ────────────────────────────────────────────
+        async function viewDoc(slug, filePath, label) {
+            const viewer = document.getElementById('docViewer');
+            const title = document.getElementById('viewerTitle');
+            const body = document.getElementById('viewerBody');
+
+            title.textContent = label;
+            body.textContent = 'Loading...';
+            viewer.classList.add('active');
+
+            try {
+                const resp = await fetch(`${CLIENTS_DIR}/${slug}/${filePath}`);
+                if (resp.ok) {
+                    body.textContent = await resp.text();
+                } else {
+                    body.textContent = `Error: Could not load file (${resp.status})\nPath: clients/${slug}/${filePath}`;
+                }
+            } catch (e) {
+                body.textContent = `Error loading document: ${e.message}\n\nTo view locally, serve this directory:\n  cd ~/.claude-orchestrator && python3 -m http.server 8080\n  Then open http://localhost:8080/dashboard/clients.html`;
+            }
+        }
+
+        function closeViewer() {
+            document.getElementById('docViewer').classList.remove('active');
+        }
+
+        // Close on Escape
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') closeViewer();
+        });
+
+        // ── Init ───────────────────────────────────────────────────────
+        loadManifests();
+    </script>
+</body>
+</html>
