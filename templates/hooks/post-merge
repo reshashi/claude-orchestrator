@@ -68,4 +68,26 @@ if [ $TODO_COUNT -gt 0 ]; then
     echo "  Run '~/.claude/scripts/backlog.sh list' to see them"
 fi
 
+# Post Slack deploy summary for master merges
+CURRENT_BRANCH=$(git branch --show-current)
+if [ "$CURRENT_BRANCH" = "master" ]; then
+    echo -e "${BLUE}[Post-Merge] Triggering Slack deploy notification...${NC}"
+    if [ -n "$SLACK_BOT_TOKEN" ] && [ -n "$SLACK_PRODUCT_INBOX_CHANNEL" ]; then
+        COMMIT_SHA=$(git log -1 --pretty=%h)
+        COMMIT_AUTHOR=$(git log -1 --pretty=%an)
+        SLACK_POST="$HOME/.claude/scripts/slack-post.sh"
+        if [ -x "$SLACK_POST" ]; then
+            "$SLACK_POST" \
+                --channel "$SLACK_PRODUCT_INBOX_CHANNEL" \
+                --text ":rocket: *Deploy: ${COMMIT_MSG}*\nby ${COMMIT_AUTHOR} (\`${COMMIT_SHA}\`)" \
+                && echo -e "${GREEN}✓ Slack notification sent${NC}" \
+                || echo -e "${YELLOW}⚠ Slack notification failed (CI step will cover it)${NC}"
+        else
+            echo -e "${YELLOW}⚠ slack-post.sh not found — CI step will handle notification${NC}"
+        fi
+    else
+        echo -e "${YELLOW}⚠ SLACK env vars not set — CI step will handle notification${NC}"
+    fi
+fi
+
 echo -e "${GREEN}✓ Post-merge hooks complete${NC}\n"

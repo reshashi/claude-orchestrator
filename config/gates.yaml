@@ -23,6 +23,13 @@ gates:
     blocking: false
     trigger:
       min_lines_changed: 50
+  qa-browser:
+    enabled: true
+    blocking: false
+    trigger:
+      files_match:
+        - "app/**/*.tsx"
+        - "app/**/*.css"
 settings:
   ci_poll_interval_seconds: 30
   ci_timeout_minutes: 30

@@ -34,7 +34,10 @@ _detect_repo() {
 pr_create() {
     _require_gh
 
-    local branch="" title="" body="" base="main"
+    # Auto-detect default branch (master or main)
+    local default_base
+    default_base=$(gh repo view --json defaultBranchRef -q '.defaultBranchRef.name' 2>/dev/null || echo "master")
+    local branch="" title="" body="" base="$default_base"
 
     # First positional arg is branch
     if [[ $# -gt 0 && ! "$1" =~ ^-- ]]; then

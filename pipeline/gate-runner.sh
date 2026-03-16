@@ -160,6 +160,25 @@ run_gate() {
 
     echo "Running gate: $agent_name for PR #$pr_number..." >&2
 
+    # Special handling for qa-browser gate (uses gstack /qa skill)
+    if [[ "$agent_name" == "qa-browser" ]]; then
+        local qa_result
+        if command -v claude &>/dev/null; then
+            qa_result=$(claude --print "/qa quick" 2>/dev/null) || true
+        else
+            echo "Error: claude CLI not found. Cannot run /qa gate." >&2
+            return 1
+        fi
+        echo "$qa_result"
+        if echo "$qa_result" | grep -qiE 'health.*score.*[89][0-9]%|health.*score.*100%|all.*checks.*pass|RESULT:[[:space:]]*PASS'; then
+            return 0
+        elif echo "$qa_result" | grep -qiE 'RESULT:[[:space:]]*FAIL|critical.*issue|health.*score.*[0-4][0-9]%'; then
+            return 1
+        fi
+        # Default: pass for advisory gate
+        return 0
+    fi
+
     # Get agent review mandate
     local mandate
     mandate=$("$SCRIPT_DIR/agent-registry.sh" review-mandate "$agent_name" 2>/dev/null)

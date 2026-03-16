@@ -282,6 +282,307 @@ SELECT * FROM tasks_backlog WHERE id = $id;
 SQL
 }
 
+next_task() {
+    local mode="${1:-any}"
+    init_db
+
+    # Mode: prd = only PRD tasks, regular = non-PRD tasks, any = PRDs first then regular
+    local result=""
+
+    if [ "$mode" = "prd" ] || [ "$mode" = "any" ]; then
+        # Try PRD tasks first (have prd_id in metadata)
+        result=$(sqlite3 -json "$DB_PATH" << 'SQL'
+SELECT id, source, priority, title, description, file_path, line_number, status, created_at, metadata
+FROM tasks_backlog
+WHERE status = 'pending'
+  AND metadata IS NOT NULL
+  AND json_extract(metadata, '$.prd_id') IS NOT NULL
+  AND (metadata IS NULL OR metadata NOT LIKE '%"autopilot_attempts":2%')
+ORDER BY
+    CASE priority
+        WHEN 'critical' THEN 1
+        WHEN 'high' THEN 2
+        WHEN 'important' THEN 3
+        WHEN 'medium' THEN 4
+        WHEN 'suggestion' THEN 5
+    END,
+    json_extract(metadata, '$.series_order') ASC,
+    created_at ASC
+LIMIT 1;
+SQL
+)
+    fi
+
+    # If no PRD task found and mode allows regular tasks
+    if ([ -z "$result" ] || [ "$result" = "[]" ]) && ([ "$mode" = "regular" ] || [ "$mode" = "any" ]); then
+        result=$(sqlite3 -json "$DB_PATH" << 'SQL'
+SELECT id, source, priority, title, description, file_path, line_number, status, created_at, metadata
+FROM tasks_backlog
+WHERE status = 'pending'
+  AND title NOT LIKE '%INFRASTRUCTURE%'
+  AND title NOT LIKE '%insurance%'
+  AND title NOT LIKE '%attorney%'
+  AND title NOT LIKE '%Privacy Officer%'
+  AND title NOT LIKE '%Security Officer%'
+  AND title NOT LIKE '%BAA%'
+  AND title NOT LIKE '%HIPAA Risk Assessment%'
+  AND title NOT LIKE '%cyber liability%'
+  AND title NOT LIKE '%staging environment%'
+  AND (metadata IS NULL OR json_extract(metadata, '$.prd_id') IS NULL)
+  AND (metadata IS NULL OR metadata NOT LIKE '%"autopilot_attempts":2%')
+ORDER BY
+    CASE priority
+        WHEN 'critical' THEN 1
+        WHEN 'high' THEN 2
+        WHEN 'important' THEN 3
+        WHEN 'medium' THEN 4
+        WHEN 'suggestion' THEN 5
+    END,
+    created_at ASC
+LIMIT 1;
+SQL
+)
+    fi
+
+    if [ -z "$result" ] || [ "$result" = "[]" ]; then
+        echo "{}"
+        return 1
+    fi
+
+    # sqlite3 -json returns an array; extract the first element
+    echo "$result" | jq -c '.[0]'
+}
+
+# ---------------------------------------------------------------------------
+# PRD Ingest: Parse YAML frontmatter from a PRD file and create a backlog entry
+# ---------------------------------------------------------------------------
+prd_ingest() {
+    local prd_path="$1"
+
+    if [ -z "$prd_path" ] || [ ! -f "$prd_path" ]; then
+        echo "Error: PRD file not found: ${prd_path:-<none>}" >&2
+        echo "Usage: backlog.sh prd-ingest <path-to-prd.md>" >&2
+        exit 1
+    fi
+
+    init_db
+
+    # Extract YAML frontmatter between --- delimiters
+    local frontmatter
+    frontmatter=$(sed -n '/^---$/,/^---$/p' "$prd_path" | sed '1d;$d')
+
+    if [ -z "$frontmatter" ]; then
+        echo "Error: No YAML frontmatter found in $prd_path" >&2
+        exit 1
+    fi
+
+    # Parse YAML fields (simple key: value extraction — no yq dependency)
+    local prd_id series series_order priority
+    prd_id=$(echo "$frontmatter" | grep '^prd_id:' | sed 's/^prd_id:[[:space:]]*//')
+    series=$(echo "$frontmatter" | grep '^series:' | sed 's/^series:[[:space:]]*//')
+    series_order=$(echo "$frontmatter" | grep '^series_order:' | sed 's/^series_order:[[:space:]]*//')
+    priority=$(echo "$frontmatter" | grep '^priority:' | sed 's/^priority:[[:space:]]*//')
+
+    # Parse depends_on array (lines starting with "  - ")
+    local depends_on_json
+    depends_on_json=$(echo "$frontmatter" | sed -n '/^depends_on:/,/^[^ ]/p' | grep '^  - ' | sed 's/^  - //' | jq -R -s 'split("\n") | map(select(. != ""))' 2>/dev/null || echo "[]")
+
+    if [ -z "$prd_id" ]; then
+        echo "Error: prd_id not found in frontmatter of $prd_path" >&2
+        exit 1
+    fi
+
+    # Deduplicate on prd_id
+    local existing
+    existing=$(sqlite3 "$DB_PATH" "SELECT id FROM tasks_backlog WHERE status != 'deleted' AND metadata IS NOT NULL AND json_extract(metadata, '\$.prd_id') = '$prd_id' LIMIT 1;")
+    if [ -n "$existing" ]; then
+        echo "Skipped (duplicate prd_id '$prd_id', existing task #$existing)"
+        return 0
+    fi
+
+    # Extract title from first markdown heading
+    local title
+    title=$(grep -m1 '^# ' "$prd_path" | sed 's/^# //')
+    [ -z "$title" ] && title="PRD: $prd_id"
+
+    # Build metadata JSON
+    local metadata
+    metadata=$(jq -n -c \
+        --arg prd_id "$prd_id" \
+        --arg series "$series" \
+        --argjson series_order "${series_order:-0}" \
+        --argjson depends_on "$depends_on_json" \
+        --arg prd_file "$prd_path" \
+        '{
+            prd_id: $prd_id,
+            series: $series,
+            series_order: $series_order,
+            depends_on: $depends_on,
+            prd_file: $prd_file
+        }')
+
+    local created_at
+    created_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    local escaped_title
+    escaped_title=$(echo "$title" | sed "s/'/''/g")
+    local escaped_meta
+    escaped_meta=$(echo "$metadata" | sed "s/'/''/g")
+
+    local id
+    id=$(sqlite3 "$DB_PATH" << SQL
+INSERT INTO tasks_backlog (source, priority, title, description, file_path, status, created_at, metadata)
+VALUES ('prd', '${priority:-important}', '$escaped_title', 'Auto-ingested from PRD file', '$prd_path', 'pending', '$created_at', '$escaped_meta');
+SELECT last_insert_rowid();
+SQL
+)
+
+    echo "Ingested PRD task #$id: $title (prd_id: $prd_id, series: ${series:-none}, order: ${series_order:-0})"
+}
+
+# ---------------------------------------------------------------------------
+# PRD Deps: Show dependency status for a PRD task
+# ---------------------------------------------------------------------------
+prd_deps() {
+    local task_id="$1"
+
+    if [ -z "$task_id" ]; then
+        echo "Error: task ID is required" >&2
+        echo "Usage: backlog.sh prd-deps <task_id>" >&2
+        exit 1
+    fi
+
+    init_db
+
+    # Get this task's metadata
+    local meta
+    meta=$(sqlite3 "$DB_PATH" "SELECT metadata FROM tasks_backlog WHERE id = $task_id;")
+
+    if [ -z "$meta" ]; then
+        echo "Error: Task #$task_id not found" >&2
+        exit 1
+    fi
+
+    local prd_id
+    prd_id=$(echo "$meta" | jq -r '.prd_id // empty')
+    if [ -z "$prd_id" ]; then
+        echo "Task #$task_id is not a PRD task (no prd_id in metadata)"
+        return 0
+    fi
+
+    echo "=== PRD Dependencies for Task #$task_id ($prd_id) ==="
+    echo ""
+
+    # Get depends_on list
+    local deps
+    deps=$(echo "$meta" | jq -r '.depends_on[]? // empty' 2>/dev/null)
+
+    if [ -z "$deps" ]; then
+        echo "No dependencies — ready to execute."
+        return 0
+    fi
+
+    local all_resolved=true
+    while IFS= read -r dep_prd_id; do
+        [ -z "$dep_prd_id" ] && continue
+        local dep_info
+        dep_info=$(sqlite3 -json "$DB_PATH" "SELECT id, status, title FROM tasks_backlog WHERE metadata IS NOT NULL AND json_extract(metadata, '\$.prd_id') = '$dep_prd_id' AND status != 'deleted' LIMIT 1;" 2>/dev/null | jq -c '.[0] // empty')
+
+        if [ -z "$dep_info" ]; then
+            echo "  [ ] $dep_prd_id — NOT INGESTED"
+            all_resolved=false
+        else
+            local dep_status dep_task_id
+            dep_status=$(echo "$dep_info" | jq -r '.status')
+            dep_task_id=$(echo "$dep_info" | jq -r '.id')
+            if [ "$dep_status" = "completed" ]; then
+                echo "  [x] $dep_prd_id (task #$dep_task_id) — completed"
+            else
+                echo "  [ ] $dep_prd_id (task #$dep_task_id) — $dep_status"
+                all_resolved=false
+            fi
+        fi
+    done <<< "$deps"
+
+    echo ""
+    if [ "$all_resolved" = true ]; then
+        echo "All dependencies resolved — ready to execute."
+    else
+        echo "Blocked — unresolved dependencies remain."
+    fi
+}
+
+start_task() {
+    local id="$1"
+    local run_id="${2:-}"
+
+    if [ -z "$id" ]; then
+        echo "Error: task ID is required" >&2
+        echo "Usage: backlog.sh start <id> [run_id]" >&2
+        exit 1
+    fi
+
+    init_db
+
+    local now
+    now=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+    # Read current metadata and increment attempts
+    local current_meta
+    current_meta=$(sqlite3 "$DB_PATH" "SELECT COALESCE(metadata, '{}') FROM tasks_backlog WHERE id = $id;")
+    if [ -z "$current_meta" ] || [ "$current_meta" = "" ]; then
+        current_meta="{}"
+    fi
+
+    local new_meta
+    new_meta=$(echo "$current_meta" | jq -c --arg ts "$now" --arg rid "$run_id" '
+        .autopilot_started_at = $ts |
+        .autopilot_run_id = $rid |
+        .autopilot_attempts = ((.autopilot_attempts // 0) + 1)
+    ')
+
+    local escaped_meta
+    escaped_meta=$(echo "$new_meta" | sed "s/'/''/g")
+
+    local changes
+    changes=$(sqlite3 "$DB_PATH" << SQL
+UPDATE tasks_backlog SET status = 'in_progress', metadata = '$escaped_meta' WHERE id = $id AND status = 'pending';
+SELECT changes();
+SQL
+)
+
+    if [ "$changes" -gt 0 ]; then
+        echo "Started task #$id (run: ${run_id:-none})"
+    else
+        echo "Task #$id not found or not in pending status" >&2
+        exit 1
+    fi
+}
+
+reset_task() {
+    local id="$1"
+
+    if [ -z "$id" ]; then
+        echo "Error: task ID is required" >&2
+        exit 1
+    fi
+
+    init_db
+
+    local changes
+    changes=$(sqlite3 "$DB_PATH" << SQL
+UPDATE tasks_backlog SET status = 'pending' WHERE id = $id AND status = 'in_progress';
+SELECT changes();
+SQL
+)
+
+    if [ "$changes" -gt 0 ]; then
+        echo "Reset task #$id to pending"
+    else
+        echo "Task #$id not found or not in_progress" >&2
+        exit 1
+    fi
+}
+
 dedup_tasks() {
     init_db
 
@@ -358,8 +659,13 @@ show_help() {
     echo "  delete <id>               - Delete a task (soft delete)"
     echo "  search <query>            - Search tasks by title or description"
     echo "  stats                     - Show backlog statistics"
+    echo "  next [--mode prd|regular|any]  - Get highest-priority actionable item (JSON)"
+    echo "  start <id> [run_id]       - Mark task as in_progress for autopilot"
+    echo "  reset <id>                - Reset in_progress task back to pending"
     echo "  dedup                     - Remove duplicate pending tasks"
     echo "  cleanup                   - Remove garbage entries (code fragments)"
+    echo "  prd-ingest <path>         - Ingest a PRD file into the backlog"
+    echo "  prd-deps <id>             - Show dependency status for a PRD task"
     echo ""
     echo "Examples:"
     echo "  backlog.sh add 'Add input validation to API' --priority important --source review"
@@ -424,8 +730,22 @@ case "$command" in
     delete) delete_task "$1" ;;
     search) search_tasks "$*" ;;
     stats) show_stats ;;
+    next)
+        mode="any"
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                --mode) mode="$2"; shift 2 ;;
+                *) shift ;;
+            esac
+        done
+        next_task "$mode"
+        ;;
+    start) start_task "$1" "$2" ;;
+    reset) reset_task "$1" ;;
     dedup) dedup_tasks ;;
     cleanup) cleanup_garbage ;;
+    prd-ingest) prd_ingest "$1" ;;
+    prd-deps) prd_deps "$1" ;;
     -h|--help|help|"") show_help ;;
     *) echo "Unknown command: $command"; show_help; exit 1 ;;
 esac

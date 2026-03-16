@@ -52,7 +52,7 @@ log_event() {
         --arg level "$level" \
         --arg msg "$message" \
         --argjson extra "$extra_json" \
-        '{timestamp: $ts, event: $event, level: $level, message: $msg} + $extra' 2>/dev/null)
+        '{timestamp: $ts, event: $event, level: $level, message: $msg} + $extra' 2>/dev/null || true)
 
     # If jq fails, fallback to simple format
     if [ -z "$json_event" ]; then
@@ -274,6 +274,127 @@ log_notification_sent() {
     log_event "notification_sent" "info" "Notification: $title" "$extra"
 }
 
+# Autopilot events
+log_autopilot_started() {
+    local task_id="$1"
+    local title="$2"
+    local priority="$3"
+    local run_id="$4"
+
+    local extra
+    extra=$(jq -n -c \
+        --argjson task_id "$task_id" \
+        --arg title "$title" \
+        --arg priority "$priority" \
+        --arg run_id "$run_id" \
+        '{autopilot: {task_id: $task_id, title: $title, priority: $priority, run_id: $run_id}}')
+
+    log_event "autopilot_started" "info" "Autopilot picked up task #$task_id: $title" "$extra"
+}
+
+log_autopilot_worker_spawned() {
+    local task_id="$1"
+    local branch="$2"
+    local worktree="$3"
+
+    local extra
+    extra=$(jq -n -c \
+        --argjson task_id "$task_id" \
+        --arg branch "$branch" \
+        --arg worktree "$worktree" \
+        '{autopilot: {task_id: $task_id, branch: $branch, worktree: $worktree}}')
+
+    log_event "autopilot_worker_spawned" "info" "Worker spawned for task #$task_id on branch $branch" "$extra"
+}
+
+log_autopilot_pr_created() {
+    local task_id="$1"
+    local pr_number="$2"
+    local pr_url="$3"
+
+    local extra
+    extra=$(jq -n -c \
+        --argjson task_id "$task_id" \
+        --argjson pr_number "$pr_number" \
+        --arg pr_url "$pr_url" \
+        '{autopilot: {task_id: $task_id}, pr: {number: $pr_number, url: $pr_url}}')
+
+    log_event "autopilot_pr_created" "info" "PR #$pr_number created for task #$task_id" "$extra"
+}
+
+log_autopilot_completed() {
+    local task_id="$1"
+    local pr_number="${2:-}"
+    local duration="${3:-}"
+
+    local extra
+    extra=$(jq -n -c \
+        --argjson task_id "$task_id" \
+        --argjson pr_number "${pr_number:-null}" \
+        --arg duration "$duration" \
+        '{autopilot: {task_id: $task_id, duration: (if $duration == "" then null else $duration end)}, pr: {number: $pr_number}}')
+
+    log_event "autopilot_completed" "info" "Task #$task_id completed successfully" "$extra"
+}
+
+log_autopilot_failed() {
+    local task_id="$1"
+    local reason="$2"
+    local stage="${3:-unknown}"
+
+    local extra
+    extra=$(jq -n -c \
+        --argjson task_id "$task_id" \
+        --arg reason "$reason" \
+        --arg stage "$stage" \
+        '{autopilot: {task_id: $task_id, failure_reason: $reason, failure_stage: $stage}}')
+
+    log_event "autopilot_failed" "error" "Task #$task_id failed: $reason" "$extra"
+}
+
+log_autopilot_ci_status() {
+    local task_id="$1"
+    local pr_number="$2"
+    local status="$3"
+
+    local extra
+    extra=$(jq -n -c \
+        --argjson task_id "$task_id" \
+        --argjson pr_number "$pr_number" \
+        --arg status "$status" \
+        '{autopilot: {task_id: $task_id}, pr: {number: $pr_number, ci_status: $status}}')
+
+    log_event "autopilot_ci_status" "info" "CI $status for PR #$pr_number (task #$task_id)" "$extra"
+}
+
+log_autopilot_merged() {
+    local task_id="$1"
+    local pr_number="$2"
+
+    local extra
+    extra=$(jq -n -c \
+        --argjson task_id "$task_id" \
+        --argjson pr_number "$pr_number" \
+        '{autopilot: {task_id: $task_id}, pr: {number: $pr_number}}')
+
+    log_event "autopilot_merged" "info" "PR #$pr_number merged for task #$task_id" "$extra"
+}
+
+log_autopilot_slack_posted() {
+    local task_id="$1"
+    local message_type="$2"
+    local channel="$3"
+
+    local extra
+    extra=$(jq -n -c \
+        --argjson task_id "$task_id" \
+        --arg type "$message_type" \
+        --arg channel "$channel" \
+        '{autopilot: {task_id: $task_id, slack_message_type: $type, slack_channel: $channel}}')
+
+    log_event "autopilot_slack_posted" "info" "Slack $message_type posted for task #$task_id" "$extra"
+}
+
 # Log rotation utility
 rotate_logs() {
     local max_size="${1:-10485760}"  # 10MB default
@@ -301,5 +422,7 @@ export -f log_pr_detected log_pr_ci_status log_pr_merged
 export -f log_review_started log_review_completed
 export -f log_agent_started log_agent_completed
 export -f log_project_status_change log_project_workers_complete
+export -f log_autopilot_started log_autopilot_worker_spawned log_autopilot_pr_created
+export -f log_autopilot_completed log_autopilot_failed log_autopilot_ci_status log_autopilot_merged log_autopilot_slack_posted
 export -f log_notification_sent rotate_logs should_log
 export LOG_DIR JSON_LOG_FILE TEXT_LOG_FILE LOG_LEVEL
